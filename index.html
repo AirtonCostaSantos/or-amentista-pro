@@ -49,12 +49,11 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
-        /* Fix para o erro visual do screenshot */
         .normative-box {
             background-color: var(--slate-900);
             border-left: 6px solid var(--primary);
             border-radius: 0 0 1rem 1rem;
-            margin-top: -1px; /* une as bordas */
+            margin-top: -1px;
         }
     </style>
     <script type="importmap">
@@ -67,7 +66,6 @@
 </head>
 <body id="app-body" class="text-slate-900 min-h-screen pb-20 transition-colors duration-300">
 
-    <!-- HEADER -->
     <header class="bg-slate-900 text-white py-6 px-4 shadow-2xl mb-10 print:hidden border-b-4 border-amber-500">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div class="flex items-center gap-5">
@@ -80,15 +78,12 @@
                 </div>
             </div>
             
-            <div id="header-actions" class="flex flex-wrap gap-2">
-                <!-- Buttons rendered by JS -->
-            </div>
+            <div id="header-actions" class="flex flex-wrap gap-2"></div>
         </div>
     </header>
 
     <main class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
         
-        <!-- SIDEBAR (INPUTS) -->
         <section id="sidebar" class="lg:col-span-4 print:hidden space-y-6 lg:sticky lg:top-8 h-fit">
             <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
                 <div class="flex border-b overflow-x-auto custom-scrollbar" id="form-tabs">
@@ -98,11 +93,8 @@
                     <button onclick="window.switchTab('company')" id="tab-company" class="flex-1 py-4 px-2 text-[10px] font-black uppercase transition-all tab-inactive">Sua Empresa</button>
                 </div>
 
-                <div class="p-6 space-y-6" id="form-content">
-                    <!-- Dynamic Form Content -->
-                </div>
+                <div class="p-6 space-y-6" id="form-content"></div>
 
-                <!-- NORMATIVE INFO (CONSERTADO CONFORME SCREENSHOT) -->
                 <div id="normative-info" class="normative-box p-6">
                     <h4 class="text-amber-500 font-black text-[11px] mb-2 uppercase tracking-widest">Normas & Parâmetros</h4>
                     <p class="text-[10px] text-slate-300 opacity-90 leading-relaxed font-medium">
@@ -112,10 +104,7 @@
             </div>
         </section>
 
-        <!-- RESULT DISPLAY -->
         <section id="result-container" class="lg:col-span-8 space-y-6">
-            
-            <!-- Preview Info Bar -->
             <div id="preview-info" class="hidden mb-6 justify-between items-center bg-white p-4 rounded-xl shadow-lg border-2 border-amber-100 print:hidden">
                <div class="flex items-center gap-3">
                  <span class="w-3 h-3 bg-amber-500 rounded-full animate-pulse"></span>
@@ -126,11 +115,8 @@
                </button>
             </div>
 
-            <div id="document-render" class="space-y-6">
-                <!-- Result Content Rendered by JS -->
-            </div>
+            <div id="document-render" class="space-y-6"></div>
 
-            <!-- Preview Footer Actions -->
             <div id="preview-actions" class="hidden mt-10 justify-center gap-4 print:hidden pb-10">
                 <button onclick="window.approveBudget()" id="footer-btn-approve" class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl transition-all">
                     Aprovar Proposta
@@ -142,12 +128,10 @@
         </section>
     </main>
 
-    <!-- LOGICA JAVASCRIPT (ESM) -->
     <script type="module">
         import { GoogleGenAI } from "@google/genai";
 
-        // --- CONSTANTES E ESTADO ---
-        const storageKey = 'orcamentista_pro_standalone_v1';
+        const storageKey = 'orcamentista_pro_standalone_v2';
         
         const defaultRegistry = {
             materials: [
@@ -205,7 +189,6 @@
             localStorage.setItem(storageKey, JSON.stringify(state));
         }
 
-        // --- SISTEMA DE RENDERIZAÇÃO ---
         window.switchTab = (tab) => { state.activeTab = tab; render(); };
         window.switchRegistryTab = (tab) => { state.registryTab = tab; render(); };
         window.toggleView = (mode) => {
@@ -238,6 +221,7 @@
         };
 
         window.updateContact = (type, key, val) => {
+            if(!state[type]) state[type] = {};
             state[type][key] = val;
             saveState();
             render();
@@ -278,14 +262,13 @@
                 const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt });
                 state.aiSummary = response.text;
             } catch (e) {
-                state.aiSummary = "Análise técnica gerada localmente: O projeto atende às normas vigentes de gesso acartonado.";
+                state.aiSummary = "Análise técnica gerada localmente: O projeto atende às normas vigentes de gesso acartonado e elétrica residencial.";
             } finally {
                 state.loadingAi = false;
                 render();
             }
         };
 
-        // --- LÓGICA DE CÁLCULO ---
         function calculate() {
             const margin = 1.10;
             const res = { sections: [], totalArea: 0, totalCost: 0 };
@@ -331,7 +314,6 @@
                 });
             }
 
-            // Atribuir Preços
             res.sections.forEach(sec => {
                 sec.items.forEach(item => {
                     const match = state.registry.materials.find(m => item.name.toLowerCase().includes(m.name.toLowerCase()) || m.name.toLowerCase().includes(item.name.toLowerCase()));
@@ -341,7 +323,6 @@
                 });
             });
 
-            // Adicionar Serviços
             const servSection = { title: 'Mão de Obra Especializada', items: [] };
             state.registry.services.forEach(serv => {
                 const matchMode = serv.name.toLowerCase().includes(state.mode.split('/')[0].toLowerCase()) ||
@@ -359,12 +340,11 @@
             return res;
         }
 
-        // --- RENDERS ---
         function render() {
             const activeId = document.activeElement ? document.activeElement.id : null;
+            const cursorStart = document.activeElement ? document.activeElement.selectionStart : null;
             const resultData = calculate();
 
-            // Header Actions
             document.getElementById('header-actions').innerHTML = state.viewMode === 'edit' ? `
                 <button onclick="window.getAiAnalysis()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-black flex items-center gap-2 text-[11px] transition-all uppercase tracking-widest ${state.loadingAi ? 'opacity-50' : ''}">
                     <i class="fas ${state.loadingAi ? 'fa-sync fa-spin' : 'fa-magic'}"></i> Consultar IA
@@ -381,13 +361,11 @@
                 </button>
             `;
 
-            // Tabs
             document.querySelectorAll('#form-tabs button').forEach(btn => {
                 const id = btn.id.replace('tab-', '');
                 btn.className = `flex-1 py-4 px-2 text-[10px] font-black uppercase transition-all ${state.activeTab === id ? 'tab-active' : 'tab-inactive'}`;
             });
 
-            // Form Content
             const form = document.getElementById('form-content');
             if (state.activeTab === 'project') {
                 form.innerHTML = `
@@ -398,19 +376,19 @@
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         ${state.mode === 'Pintura' ? `
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2">Área (m²)</label><input id="inp-paintArea" type="text" oninput="window.updateState('paintArea', this.value)" value="${state.paintArea}"></div>
-                            <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-2">Demãos</label><input id="inp-coats" type="text" oninput="window.updateState('coats', this.value)" value="${state.coats}"></div>
-                            <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-2">Tipo Tinta</label><select onchange="window.updateState('paintType', this.value)"><option>Acrílica Premium</option><option>Acrílica Econômica</option></select></div>
+                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Área Total (m²)</label><input id="inp-paintArea" type="text" oninput="window.updateState('paintArea', this.value)" value="${state.paintArea}"></div>
+                            <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Demãos</label><input id="inp-coats" type="text" oninput="window.updateState('coats', this.value)" value="${state.coats}"></div>
+                            <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Tipo Tinta</label><select id="inp-paintType" onchange="window.updateState('paintType', this.value)"><option ${state.paintType === 'Acrílica Premium' ? 'selected' : ''}>Acrílica Premium</option><option ${state.paintType === 'Acrílica Econômica' ? 'selected' : ''}>Acrílica Econômica</option></select></div>
                         ` : state.mode === 'Elétrica' ? `
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2">Área (m²)</label><input id="inp-electricalArea" type="text" oninput="window.updateState('electricalArea', this.value)" value="${state.electricalArea}"></div>
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2">Perímetro (m)</label><input id="inp-perimeter" type="text" oninput="window.updateState('perimeterTotal', this.value)" value="${state.perimeterTotal}"></div>
+                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Área de Instalação (m²)</label><input id="inp-electricalArea" type="text" oninput="window.updateState('electricalArea', this.value)" value="${state.electricalArea}"></div>
+                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Perímetro Linear (m)</label><input id="inp-perimeter" type="text" oninput="window.updateState('perimeterTotal', this.value)" value="${state.perimeterTotal}"></div>
                         ` : `
                             <div><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Comprimento (m)</label><input id="inp-length" type="text" oninput="window.updateState('length', this.value)" value="${state.length}"></div>
                             <div><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">${state.mode.includes('Parede') ? 'Altura' : 'Largura'} (m)</label><input id="inp-dim" type="text" oninput="window.updateState('${state.mode.includes('Parede') ? 'height' : 'width'}', this.value)" value="${state.mode.includes('Parede') ? state.height : state.width}"></div>
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Tipo de Chapa</label><select onchange="window.updateState('boardType', this.value)"><option>Standard (Branca)</option><option>RU (Verde)</option><option>RF (Rosa)</option></select></div>
+                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Tipo de Chapa</label><select id="inp-boardType" onchange="window.updateState('boardType', this.value)"><option ${state.boardType === 'Standard (Branca)' ? 'selected' : ''}>Standard (Branca)</option><option ${state.boardType === 'RU (Verde)' ? 'selected' : ''}>RU (Verde)</option><option ${state.boardType === 'RF (Rosa)' ? 'selected' : ''}>RF (Rosa)</option></select></div>
                             <div class="col-span-2 flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 mt-2">
-                                <input id="inp-double" type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="state.isDouble=this.checked; render();" class="w-5 h-5 accent-amber-500 cursor-pointer border-none">
-                                <label for="inp-double" class="text-[10px] font-black text-slate-700 cursor-pointer select-none uppercase">Chapa Dupla / Camada Reforçada</label>
+                                <input id="inp-double" type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="state.isDouble=this.checked; render();" class="w-5 h-5 accent-amber-500 cursor-pointer">
+                                <label for="inp-double" class="text-[10px] font-black text-slate-700 cursor-pointer select-none uppercase tracking-widest">Chapa Dupla / Camada Reforçada</label>
                             </div>
                         `}
                     </div>
@@ -418,8 +396,8 @@
             } else if (state.activeTab === 'registry') {
                 form.innerHTML = `
                     <div class="flex gap-2 mb-4">
-                        <button onclick="window.switchRegistryTab('materials')" class="flex-1 py-2 text-[9px] font-black uppercase rounded-lg ${state.registryTab === 'materials' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}">Materiais</button>
-                        <button onclick="window.switchRegistryTab('services')" class="flex-1 py-2 text-[9px] font-black uppercase rounded-lg ${state.registryTab === 'services' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}">Serviços</button>
+                        <button onclick="window.switchRegistryTab('materials')" class="flex-1 py-2 text-[9px] font-black uppercase rounded-lg ${state.registryTab === 'materials' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-400'}">Materiais</button>
+                        <button onclick="window.switchRegistryTab('services')" class="flex-1 py-2 text-[9px] font-black uppercase rounded-lg ${state.registryTab === 'services' ? 'bg-slate-900 text-white shadow-md' : 'bg-slate-100 text-slate-400'}">Serviços</button>
                     </div>
                     <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 mb-6">
                         <input id="reg-${state.registryTab}-name" type="text" placeholder="Nome do item" class="w-full">
@@ -427,12 +405,12 @@
                             <input id="reg-${state.registryTab}-price" type="number" placeholder="Preço" class="flex-1">
                             <select id="reg-${state.registryTab}-unit" class="w-24"><option>unid</option><option>m²</option><option>m</option><option>L</option></select>
                         </div>
-                        <button onclick="window.addToRegistry('${state.registryTab}')" class="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all">+ Cadastrar</button>
+                        <button onclick="window.addToRegistry('${state.registryTab}')" class="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all">+ Cadastrar Item</button>
                     </div>
                     <div class="max-h-60 overflow-y-auto custom-scrollbar space-y-2">
                         ${state.registry[state.registryTab].map((item, idx) => `
                             <div class="flex justify-between items-center p-3 bg-white border-2 border-slate-100 rounded-xl group hover:border-amber-300 transition-all">
-                                <div><p class="text-[11px] font-black text-slate-700 leading-none">${item.name}</p><p class="text-[9px] text-slate-400 font-bold uppercase mt-1">R$ ${item.price.toFixed(2)} / ${item.unit}</p></div>
+                                <div class="pr-2"><p class="text-[11px] font-black text-slate-700 leading-none truncate w-40">${item.name}</p><p class="text-[9px] text-slate-400 font-bold uppercase mt-1">R$ ${item.price.toFixed(2)} / ${item.unit}</p></div>
                                 <button onclick="window.removeFromRegistry('${state.registryTab}', ${idx})" class="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all px-2"><i class="fas fa-trash-alt text-[10px]"></i></button>
                             </div>
                         `).join('')}
@@ -443,20 +421,31 @@
                 const data = state[type];
                 form.innerHTML = `
                     <div class="space-y-4">
-                        <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Nome / Identificação</label><input type="text" oninput="window.updateContact('${type}', 'name', this.value)" value="${data.name}" class="w-full"></div>
-                        <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Endereço</label><input type="text" oninput="window.updateContact('${type}', 'address', this.value)" value="${data.address}" class="w-full"></div>
-                        <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Documento</label><input type="text" oninput="window.updateContact('${type}', 'document', this.value)" value="${data.document}" class="w-full"></div>
-                        <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Contato</label><input type="text" oninput="window.updateContact('${type}', 'contact', this.value)" value="${data.contact}" class="w-full"></div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Nome / Identificação Social</label>
+                            <input id="inp-${type}-name" type="text" oninput="window.updateContact('${type}', 'name', this.value)" value="${data.name || ''}" class="w-full" placeholder="Ex: João da Silva">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Endereço Completo</label>
+                            <input id="inp-${type}-address" type="text" oninput="window.updateContact('${type}', 'address', this.value)" value="${data.address || ''}" class="w-full" placeholder="Ex: Rua das Flores, 123">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Documento (CPF/CNPJ)</label>
+                            <input id="inp-${type}-document" type="text" oninput="window.updateContact('${type}', 'document', this.value)" value="${data.document || ''}" class="w-full" placeholder="Ex: 000.000.000-00">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Telefone de Contato</label>
+                            <input id="inp-${type}-contact" type="text" oninput="window.updateContact('${type}', 'contact', this.value)" value="${data.contact || ''}" class="w-full" placeholder="Ex: (00) 00000-0000">
+                        </div>
                     </div>
                 `;
             }
 
-            // Document Render
             document.getElementById('document-render').innerHTML = `
                 <div class="bg-white p-10 rounded-3xl shadow-xl border border-slate-200">
                     <div class="flex flex-col md:flex-row justify-between gap-10 pb-8 border-b-2 border-slate-100 mb-8">
                         <div>
-                            <h3 class="text-amber-600 font-black text-[11px] uppercase mb-4 tracking-widest italic">PRESTADOR</h3>
+                            <h3 class="text-amber-600 font-black text-[11px] uppercase mb-4 tracking-widest italic">PRESTADOR DE SERVIÇOS</h3>
                             <p class="text-2xl font-black text-slate-800 leading-tight">${state.company.name || '---'}</p>
                             <div class="text-[11px] text-slate-500 mt-5 space-y-2 font-medium">
                                 <p><i class="fas fa-id-card w-5 text-amber-500"></i> ${state.company.document || '---'}</p>
@@ -465,21 +454,24 @@
                             </div>
                         </div>
                         <div class="bg-slate-50 p-8 rounded-3xl border-2 border-slate-100 min-w-[300px]">
-                            <h3 class="text-amber-600 font-black text-[11px] uppercase mb-3 tracking-widest italic">CLIENTE</h3>
+                            <h3 class="text-amber-600 font-black text-[11px] uppercase mb-3 tracking-widest italic">CLIENTE / DESTINATÁRIO</h3>
                             <p class="text-xl font-black text-slate-800 leading-tight">${state.customer.name || 'Nome não definido'}</p>
-                            <p class="text-[12px] text-slate-500 mt-2 font-medium">${state.customer.address || 'Endereço não definido'}</p>
+                            <div class="text-[11px] text-slate-500 mt-3 space-y-1 font-medium">
+                                <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> ${state.customer.address || 'Endereço não definido'}</p>
+                                <p><i class="fas fa-id-card w-5 text-amber-500"></i> ${state.customer.document || 'CPF/CNPJ não informado'}</p>
+                            </div>
                         </div>
                     </div>
                     <div class="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
                         <span class="text-slate-400">DOC #${Date.now().toString().slice(-6)}</span>
-                        <div class="px-5 py-2 rounded-full border-2 ${state.status === 'Approved' ? 'bg-green-500 text-white border-green-600' : 'bg-slate-100 text-slate-500 border-slate-200'} transition-all">
-                            STATUS: ${state.status === 'Approved' ? 'APROVADO' : 'AGUARDANDO'}
+                        <div class="px-5 py-2 rounded-full border-2 ${state.status === 'Approved' ? 'bg-green-500 text-white border-green-600 shadow-md' : 'bg-slate-100 text-slate-500 border-slate-200'} transition-all">
+                            STATUS: ${state.status === 'Approved' ? 'APROVADO' : 'AGUARDANDO APROVAÇÃO'}
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-white p-10 rounded-3xl shadow-xl border border-slate-200">
-                    <h2 class="text-2xl font-black text-slate-800 mb-10 uppercase border-b-8 border-amber-500 pb-4 inline-block tracking-tighter italic">Proposta Técnica e Comercial</h2>
+                    <h2 class="text-2xl font-black text-slate-800 mb-10 uppercase border-b-8 border-amber-500 pb-4 inline-block tracking-tighter italic">Detalhamento da Proposta</h2>
                     
                     ${resultData.sections.map(sec => `
                         <div class="mb-12 last:mb-0">
@@ -490,10 +482,10 @@
                                 <table class="w-full text-[12px]">
                                     <thead class="bg-slate-900 text-white font-black uppercase tracking-widest">
                                         <tr>
-                                            <th class="px-8 py-4 text-left">Item</th>
+                                            <th class="px-8 py-4 text-left">Especificação</th>
                                             <th class="px-8 py-4 text-right">Qtd</th>
-                                            <th class="px-8 py-4 text-right">Valor Unit.</th>
-                                            <th class="px-8 py-4 text-right">Subtotal</th>
+                                            <th class="px-8 py-4 text-right">Unitário</th>
+                                            <th class="px-8 py-4 text-right">Total</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-200">
@@ -514,7 +506,7 @@
                     <div class="mt-14 bg-slate-900 text-white p-12 rounded-[40px] flex flex-col md:flex-row justify-between items-center gap-10 shadow-2xl overflow-hidden">
                         <div class="text-center md:text-left">
                             <h4 class="text-amber-500 font-black text-base uppercase tracking-widest mb-3 italic leading-none">Investimento Total Estimado</h4>
-                            <p class="text-[11px] text-slate-400 uppercase font-black tracking-tighter max-w-sm leading-relaxed">Cálculo de engenharia sujeito a conferência em obra e validade dos preços de mercado.</p>
+                            <p class="text-[11px] text-slate-400 uppercase font-black tracking-tighter max-w-sm leading-relaxed">Quantitativos calculados com base em normas ABNT sujeitos a conferência física do local.</p>
                         </div>
                         <div class="text-6xl font-black text-amber-500 tracking-tighter">R$ ${resultData.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
@@ -522,7 +514,7 @@
                     ${state.aiSummary ? `
                         <div class="mt-14 p-10 bg-amber-50 border-l-[12px] border-amber-500 rounded-r-[40px] shadow-sm">
                             <h4 class="text-amber-800 font-black text-sm uppercase mb-6 flex items-center gap-3 tracking-widest italic">
-                                <i class="fas fa-file-invoice text-xl"></i> Parecer do Orçamentista IA
+                                <i class="fas fa-file-invoice text-xl"></i> Parecer do Consultor Técnico (IA)
                             </h4>
                             <div class="text-slate-700 text-[13px] leading-relaxed italic whitespace-pre-wrap font-bold opacity-90">${state.aiSummary}</div>
                         </div>
@@ -530,12 +522,12 @@
 
                     <div class="mt-32 hidden print:grid grid-cols-2 gap-32">
                         <div class="text-center border-t-4 border-slate-200 pt-6">
-                            <p class="text-[13px] font-black uppercase text-slate-800">${state.company.name}</p>
-                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Representante Técnico</p>
+                            <p class="text-[13px] font-black uppercase text-slate-800">${state.company.name || '---'}</p>
+                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Responsável Técnico</p>
                         </div>
                         <div class="text-center border-t-4 border-slate-200 pt-6">
                             <p class="text-[13px] font-black uppercase text-slate-800">${state.customer.name || 'ACEITE DO CLIENTE'}</p>
-                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Data e Assinatura</p>
+                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Assinatura e Data</p>
                         </div>
                     </div>
                 </div>
@@ -543,7 +535,12 @@
 
             if (activeId) {
                 const el = document.getElementById(activeId);
-                if (el) el.focus();
+                if (el) {
+                    el.focus();
+                    if (cursorStart !== null && (el.type === 'text' || el.type === 'tel' || el.type === 'url')) {
+                        try { el.setSelectionRange(cursorStart, cursorStart); } catch (e) {}
+                    }
+                }
             }
         }
 
