@@ -21,38 +21,41 @@
             background-color: #f1f5f9;
             color: #1e293b;
             direction: ltr !important;
+            text-align: left !important;
         }
         
-        .tab-active { background-color: var(--primary); color: white; }
+        .tab-active { background-color: var(--primary); color: white; border-radius: 12px 12px 0 0; }
         .tab-inactive { background-color: #f8fafc; color: #94a3b8; border-bottom: 1px solid #e2e8f0; }
         
         @media print {
             .print-hidden { display: none !important; }
-            body { background: white !important; }
+            body { background: white !important; padding: 0 !important; }
             .shadow-xl { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
             #sidebar { display: none !important; }
-            #result-container { width: 100% !important; margin: 0 !important; }
+            #result-container { width: 100% !important; margin: 0 !important; grid-column: span 12 / span 12 !important; }
+            .document-paper { border: none !important; padding: 1cm !important; }
         }
 
         input, select { 
             @apply transition-all duration-200 outline-none bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold w-full text-slate-700;
+            direction: ltr !important;
             text-align: left !important;
         }
         input:focus { @apply ring-2 ring-amber-500 border-amber-500 bg-white; }
         
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-
         .form-label {
             @apply block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-widest;
+            pointer-events: none;
         }
 
-        /* Estilo para simular papel no preview */
         .document-paper {
             background: white;
             min-height: 29.7cm;
-            padding: 2cm;
+            padding: 1.5cm;
         }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
     <script type="importmap">
     {
@@ -100,13 +103,13 @@
                 </div>
 
                 <div class="p-6" id="form-container">
-                    <!-- Formulário será injetado aqui -->
+                    <!-- O formulário NÃO será resetado durante a digitação para manter o cursor intacto -->
                 </div>
 
                 <div class="bg-slate-900 p-6 border-t-4 border-amber-500">
                     <h4 class="text-amber-500 font-black text-[11px] mb-2 uppercase tracking-widest">Normas Técnicas</h4>
                     <p class="text-[10px] text-slate-400 leading-relaxed font-medium">
-                        Cálculos baseados na NBR 14715 (Placas) e NBR 15758 (Sistemas Gesso). Margem de perda padrão de 10% inclusa.
+                        Levantamento automatizado conforme ABNT NBR 14715. Margem de segurança de 10% aplicada aos materiais de consumo.
                     </p>
                 </div>
             </div>
@@ -115,7 +118,7 @@
         <!-- PREVIEW DO DOCUMENTO -->
         <section id="result-container" class="lg:col-span-8">
             <div id="document-render" class="document-paper shadow-2xl rounded-3xl border border-slate-200">
-                <!-- Conteúdo do orçamento injetado aqui -->
+                <!-- Conteúdo do orçamento -->
             </div>
         </section>
     </main>
@@ -123,19 +126,18 @@
     <script type="module">
         import { GoogleGenAI } from "@google/genai";
 
-        // CONFIGURAÇÃO INICIAL E ESTADO
-        const storageKey = 'orc_pro_v10';
+        const storageKey = 'orc_pro_v11_stable';
         const defaultRegistry = {
             materials: [
-                { name: 'Chapa Drywall ST 1.20x2.40', price: 48.50, unit: 'un' },
-                { name: 'Chapa Drywall RU (Verde)', price: 68.00, unit: 'un' },
-                { name: 'Perfil F-530 (3m)', price: 18.90, unit: 'un' },
-                { name: 'Massa Drywall 20kg', price: 89.00, unit: 'un' },
-                { name: 'Parafuso TN25 (Cento)', price: 14.50, unit: 'un' }
+                { name: 'Chapa Drywall ST 1.20x2.40', price: 49.90, unit: 'un' },
+                { name: 'Chapa Drywall RU (Verde)', price: 69.50, unit: 'un' },
+                { name: 'Perfil F-530 (3m)', price: 19.50, unit: 'un' },
+                { name: 'Massa Drywall 20kg', price: 92.00, unit: 'un' },
+                { name: 'Parafuso TN25 (Cento)', price: 16.00, unit: 'un' }
             ],
             services: [
-                { name: 'Mão de Obra Drywall', price: 40.00, unit: 'm²' },
-                { name: 'Pintura (Mão de Obra)', price: 22.00, unit: 'm²' }
+                { name: 'Mão de Obra Forro Liso', price: 38.00, unit: 'm²' },
+                { name: 'Pintura (Mão de Obra)', price: 20.00, unit: 'm²' }
             ]
         };
 
@@ -144,11 +146,10 @@
             mode: 'Forro Liso',
             length: 5,
             width: 4,
-            height: 2.7,
             isDouble: false,
             boardType: 'ST (Branca)',
             customer: { name: '', email: '', document: '', address: '', contact: '', city: '' },
-            company: { name: 'Sua Empresa Drywall', email: 'contato@empresa.com', document: '00.000.000/0001-00', address: 'Rua das Obras, 123', contact: '(11) 9999-8888', city: 'São Paulo - SP' },
+            company: { name: 'Sua Empresa de Drywall', email: 'contato@suaempresa.com.br', document: '00.000.000/0001-00', address: 'Rua Principal, 100', contact: '(11) 90000-0000', city: 'São Paulo - SP' },
             registry: defaultRegistry,
             aiSummary: '',
             loadingAi: false
@@ -158,7 +159,7 @@
             localStorage.setItem(storageKey, JSON.stringify(state));
         }
 
-        // FUNÇÕES DE CÁLCULO
+        // CÁLCULOS TÉCNICOS
         function calculate() {
             const area = state.length * state.width;
             const perimeter = (state.length * 2) + (state.width * 2);
@@ -169,17 +170,16 @@
                 items: [
                     { name: `Placa Drywall ${state.boardType}`, qty: Math.ceil((area / 2.88) * margin * (state.isDouble ? 2 : 1)), unit: 'un' },
                     { name: 'Perfil F-530 (3m)', qty: Math.ceil((area * 1.5) / 3), unit: 'un' },
-                    { name: 'Cantoneira L 25x30', qty: Math.ceil(perimeter / 3), unit: 'un' },
-                    { name: 'Massa Drywall 20kg', qty: Math.ceil(area / 18), unit: 'un' },
-                    { name: 'Fita Telada (Rolos)', qty: Math.ceil(area / 30), unit: 'un' }
+                    { name: 'Cantoneira Metálica 3m', qty: Math.ceil(perimeter / 3), unit: 'un' },
+                    { name: 'Massa Drywall 20kg', qty: Math.ceil(area / 15), unit: 'un' },
+                    { name: 'Fita Telada (Rolos)', qty: Math.ceil(area / 25), unit: 'un' }
                 ],
                 services: [
-                    { name: `Instalação de ${state.mode}`, qty: area, unit: 'm²' }
+                    { name: `Execução de ${state.mode}`, qty: area, unit: 'm²' }
                 ],
                 total: 0
             };
 
-            // Atribuir preços do catálogo
             [...results.items, ...results.services].forEach(item => {
                 const reg = [...state.registry.materials, ...state.registry.services].find(r => item.name.toLowerCase().includes(r.name.toLowerCase()) || r.name.toLowerCase().includes(item.name.toLowerCase()));
                 item.price = reg ? reg.price : 0;
@@ -190,12 +190,13 @@
             return results;
         }
 
-        // RENDERIZAÇÃO
+        // NAVEGAÇÃO E ATUALIZAÇÃO
         window.switchTab = (tab) => {
             state.activeTab = tab;
             renderAll();
         };
 
+        // Função de atualização estável: NÃO reconstrói o formulário
         window.updateInput = (obj, key, val) => {
             if (obj) {
                 state[obj][key] = val;
@@ -203,33 +204,32 @@
                 state[key] = val;
             }
             save();
-            renderDocument(); // Atualiza o preview mas NÃO o formulário para manter o cursor
+            renderDocument(); // Apenas atualiza o papel do orçamento à direita
         };
 
         window.getAiAnalysis = async () => {
             if (state.loadingAi) return;
             state.loadingAi = true;
             renderAll();
-            
             const calc = calculate();
             try {
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const prompt = `Analise este orçamento de drywall. Área: ${calc.area}m2. Custo: R$ ${calc.total}. Escreva um memorial técnico curto (3 parágrafos) em português citando normas ABNT.`;
+                const prompt = `Analise este orçamento de drywall. Área: ${calc.area}m2. Custo: R$ ${calc.total}. Escreva um memorial descritivo curto em 3 parágrafos focando em qualidade e normas ABNT.`;
                 const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
                 state.aiSummary = response.text;
             } catch (e) {
-                state.aiSummary = "Memorial Técnico: Sistema de forro executado conforme NBR 14715, garantindo estanqueidade e isolamento termoacústico.";
+                state.aiSummary = "Levantamento técnico validado seguindo os padrões de engenharia de interiores para sistemas de gesso acartonado.";
             } finally {
                 state.loadingAi = false;
                 renderAll();
             }
         };
 
+        // RENDERIZAÇÃO DO FORMULÁRIO (SÓ OCORRE NA TROCA DE ABA)
         function renderForm() {
             const container = document.getElementById('form-container');
             const tab = state.activeTab;
             
-            // Renderiza o cabeçalho das abas
             document.querySelectorAll('#tab-headers button').forEach(b => {
                 const id = b.id.replace('tab-btn-', '');
                 b.className = `flex-1 py-4 px-2 text-[10px] font-black uppercase transition-all ${state.activeTab === id ? 'tab-active' : 'tab-inactive'}`;
@@ -238,83 +238,57 @@
             if (tab === 'project') {
                 container.innerHTML = `
                     <div class="space-y-4">
-                        <label class="form-label">Tipo de Projeto</label>
-                        <select onchange="window.updateInput(null, 'mode', this.value); window.renderForm();">
-                            <option ${state.mode === 'Forro Liso' ? 'selected' : ''}>Forro Liso</option>
-                            <option ${state.mode === 'Forro Tabicado' ? 'selected' : ''}>Forro Tabicado</option>
-                            <option ${state.mode === 'Parede Drywall' ? 'selected' : ''}>Parede Drywall</option>
-                        </select>
-                        
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="form-label">Comprimento (m)</label>
-                                <input type="number" step="0.1" value="${state.length}" oninput="window.updateInput(null, 'length', parseFloat(this.value))">
-                            </div>
-                            <div>
-                                <label class="form-label">Largura (m)</label>
-                                <input type="number" step="0.1" value="${state.width}" oninput="window.updateInput(null, 'width', parseFloat(this.value))">
-                            </div>
-                        </div>
-
                         <div>
-                            <label class="form-label">Tipo de Chapa</label>
-                            <select onchange="window.updateInput(null, 'boardType', this.value)">
-                                <option ${state.boardType === 'ST (Branca)' ? 'selected' : ''}>ST (Branca)</option>
-                                <option ${state.boardType === 'RU (Verde)' ? 'selected' : ''}>RU (Verde)</option>
-                                <option ${state.boardType === 'RF (Rosa)' ? 'selected' : ''}>RF (Rosa)</option>
+                            <label class="form-label">Tipo de Serviço</label>
+                            <select onchange="window.updateInput(null, 'mode', this.value); window.renderForm();">
+                                <option ${state.mode === 'Forro Liso' ? 'selected' : ''}>Forro Liso</option>
+                                <option ${state.mode === 'Forro Tabicado' ? 'selected' : ''}>Forro Tabicado</option>
+                                <option ${state.mode === 'Parede Drywall' ? 'selected' : ''}>Parede Drywall</option>
                             </select>
                         </div>
-
-                        <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="form-label">Compr. (m)</label><input type="number" step="0.1" value="${state.length}" oninput="window.updateInput(null, 'length', parseFloat(this.value))"></div>
+                            <div><label class="form-label">Largura (m)</label><input type="number" step="0.1" value="${state.width}" oninput="window.updateInput(null, 'width', parseFloat(this.value))"></div>
+                        </div>
+                        <div>
+                            <label class="form-label">Material da Chapa</label>
+                            <select onchange="window.updateInput(null, 'boardType', this.value)">
+                                <option ${state.boardType === 'ST (Branca)' ? 'selected' : ''}>Standard (Branca)</option>
+                                <option ${state.boardType === 'RU (Verde)' ? 'selected' : ''}>RU (Verde/Umidade)</option>
+                                <option ${state.boardType === 'RF (Rosa)' ? 'selected' : ''}>RF (Rosa/Fogo)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-3 p-4 bg-amber-50 rounded-xl border-2 border-amber-100">
                             <input type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="window.updateInput(null, 'isDouble', this.checked)" class="w-5 h-5 accent-amber-500">
-                            <label class="text-[10px] font-black uppercase text-slate-600">Chapa Dupla / Camada Dupla</label>
+                            <label class="text-[10px] font-black uppercase text-amber-800">Chapa Dupla (Reforço)</label>
                         </div>
                     </div>
                 `;
             } else if (tab === 'customer' || tab === 'company') {
                 const target = state[tab];
                 container.innerHTML = `
-                    <div class="space-y-4">
-                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Dados de Cadastro</h3>
-                        <div>
-                            <label class="form-label">Nome / Razão Social</label>
-                            <input type="text" value="${target.name}" oninput="window.updateInput('${tab}', 'name', this.value)" placeholder="Nome Completo">
-                        </div>
-                        <div>
-                            <label class="form-label">CPF / CNPJ</label>
-                            <input type="text" value="${target.document}" oninput="window.updateInput('${tab}', 'document', this.value)" placeholder="00.000.000/0000-00">
-                        </div>
-                        <div>
-                            <label class="form-label">E-mail para Orçamento</label>
-                            <input type="text" value="${target.email}" oninput="window.updateInput('${tab}', 'email', this.value)" placeholder="email@provedor.com">
-                        </div>
-                        <div>
-                            <label class="form-label">Telefone / WhatsApp</label>
-                            <input type="text" value="${target.contact}" oninput="window.updateInput('${tab}', 'contact', this.value)" placeholder="(00) 0 0000-0000">
-                        </div>
-                        <div>
-                            <label class="form-label">Cidade - UF</label>
-                            <input type="text" value="${target.city}" oninput="window.updateInput('${tab}', 'city', this.value)" placeholder="Cidade - UF">
-                        </div>
-                        <div>
-                            <label class="form-label">Endereço</label>
-                            <input type="text" value="${target.address}" oninput="window.updateInput('${tab}', 'address', this.value)" placeholder="Logradouro, Bairro">
-                        </div>
+                    <div class="space-y-5">
+                        <h3 class="text-[11px] font-black uppercase text-amber-600 italic border-b-2 border-slate-50 pb-2">Informações de Contato</h3>
+                        <div><label class="form-label">Nome Completo / Razão Social</label><input type="text" value="${target.name}" oninput="window.updateInput('${tab}', 'name', this.value)" placeholder="Nome do Responsável"></div>
+                        <div><label class="form-label">Documento (CPF/CNPJ)</label><input type="text" value="${target.document}" oninput="window.updateInput('${tab}', 'document', this.value)" placeholder="000.000.000-00"></div>
+                        <div><label class="form-label">E-mail de Contato</label><input type="text" value="${target.email}" oninput="window.updateInput('${tab}', 'email', this.value)" placeholder="exemplo@email.com"></div>
+                        <div><label class="form-label">Telefone / WhatsApp</label><input type="text" value="${target.contact}" oninput="window.updateInput('${tab}', 'contact', this.value)" placeholder="(00) 00000-0000"></div>
+                        <div><label class="form-label">Cidade / Estado</label><input type="text" value="${target.city}" oninput="window.updateInput('${tab}', 'city', this.value)" placeholder="Cidade - UF"></div>
+                        <div><label class="form-label">Endereço da Obra</label><input type="text" value="${target.address}" oninput="window.updateInput('${tab}', 'address', this.value)" placeholder="Rua, Número, Bairro"></div>
                         <button onclick="window.clearContact('${tab}')" class="w-full py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Limpar Campos</button>
                     </div>
                 `;
             } else if (tab === 'registry') {
                 container.innerHTML = `
                     <div class="space-y-4">
-                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Tabela de Preços</h3>
-                        <div class="max-h-96 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Tabela de Preços (Unitários)</h3>
+                        <div class="max-h-[450px] overflow-y-auto custom-scrollbar space-y-3 pr-2">
                             ${[...state.registry.materials, ...state.registry.services].map((item, idx) => `
                                 <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                                    <p class="text-[10px] font-black text-slate-700 truncate">${item.name}</p>
-                                    <div class="flex items-center gap-2 mt-2">
-                                        <span class="text-[10px] font-bold text-slate-400">R$</span>
-                                        <input type="number" step="0.01" value="${item.price}" class="py-1 px-2 !rounded-lg !text-xs" 
-                                            oninput="window.updateRegistryPrice(${idx}, parseFloat(this.value))">
+                                    <p class="text-[10px] font-black text-slate-700 leading-tight mb-2">${item.name}</p>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[10px] font-black text-slate-400">R$</span>
+                                        <input type="number" step="0.01" value="${item.price}" class="!py-1.5 !px-3 !text-xs" oninput="window.updatePrice(${idx}, parseFloat(this.value))">
                                     </div>
                                 </div>
                             `).join('')}
@@ -324,70 +298,74 @@
             }
         }
 
-        window.updateRegistryPrice = (idx, val) => {
+        window.updatePrice = (idx, val) => {
             const all = [...state.registry.materials, ...state.registry.services];
             all[idx].price = isNaN(val) ? 0 : val;
             save();
             renderDocument();
         };
 
+        window.clearContact = (tab) => {
+            state[tab] = { name: '', email: '', document: '', address: '', contact: '', city: '' };
+            save();
+            renderForm();
+            renderDocument();
+        };
+
+        // RENDERIZAÇÃO DO PAPEL DO ORÇAMENTO (ATUALIZAÇÃO EM TEMPO REAL)
         function renderDocument() {
             const data = calculate();
             const el = document.getElementById('document-render');
             
             el.innerHTML = `
-                <div class="flex justify-between items-start border-b-8 border-slate-900 pb-8 mb-8">
+                <div class="flex flex-col md:flex-row justify-between items-start border-b-8 border-slate-900 pb-8 mb-8 gap-6">
                     <div>
                         <h2 class="text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Proposta Comercial</h2>
-                        <p class="text-amber-500 font-black text-xs uppercase tracking-[0.3em] mt-2">Orçamento Técnico #${Math.floor(Math.random()*10000)}</p>
+                        <p class="text-amber-500 font-black text-xs uppercase tracking-[0.3em] mt-2 italic">Orçamento de Drywall & Forros</p>
                     </div>
-                    <div class="text-right">
-                        <p class="text-[11px] font-black text-slate-400 uppercase">Data de Emissão</p>
+                    <div class="md:text-right">
+                        <p class="text-[11px] font-black text-slate-400 uppercase">Gerado em</p>
                         <p class="text-sm font-black text-slate-900">${new Date().toLocaleDateString('pt-BR')}</p>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-12 mb-12">
-                    <div>
-                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">PRESTADOR</h4>
-                        <p class="text-xl font-black text-slate-900">${state.company.name || '---'}</p>
-                        <div class="text-[11px] text-slate-500 mt-4 space-y-1">
-                            <p><i class="fas fa-id-card w-5 text-amber-500"></i> ${state.company.document || '---'}</p>
-                            <p><i class="fas fa-at w-5 text-amber-500"></i> ${state.company.email || '---'}</p>
-                            <p><i class="fas fa-phone w-5 text-amber-500"></i> ${state.company.contact || '---'}</p>
-                            <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> ${state.company.city || '---'}</p>
-                        </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
+                    <div class="space-y-1">
+                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">PRESTADOR DE SERVIÇOS</h4>
+                        <p class="text-xl font-black text-slate-900 leading-tight">${state.company.name || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">CNPJ: ${state.company.document || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">E-mail: ${state.company.email || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Fone: ${state.company.contact || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">${state.company.city || ''}</p>
                     </div>
-                    <div class="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
-                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">CLIENTE</h4>
-                        <p class="text-lg font-black text-slate-800">${state.customer.name || '---'}</p>
-                        <div class="text-[11px] text-slate-500 mt-4 space-y-1">
-                            <p><i class="fas fa-at w-5 text-amber-500"></i> ${state.customer.email || '---'}</p>
-                            <p><i class="fas fa-phone w-5 text-amber-500"></i> ${state.customer.contact || '---'}</p>
-                            <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> ${state.customer.address || '---'}</p>
-                        </div>
+                    <div class="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 space-y-1">
+                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">DADOS DO CLIENTE</h4>
+                        <p class="text-lg font-black text-slate-800 leading-tight">${state.customer.name || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Documento: ${state.customer.document || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Endereço: ${state.customer.address || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Contato: ${state.customer.contact || '---'}</p>
                     </div>
                 </div>
 
                 <div class="mb-10">
-                    <h3 class="text-sm font-black text-slate-900 uppercase mb-6 flex items-center gap-3">
-                        <span class="w-8 h-1 bg-amber-500"></span> Composição de Materiais e Serviços
+                    <h3 class="text-xs font-black text-slate-900 uppercase mb-4 flex items-center gap-3">
+                        <span class="w-10 h-1 bg-amber-500"></span> Itens do Orçamento (${state.mode})
                     </h3>
                     <div class="border-2 border-slate-100 rounded-2xl overflow-hidden">
                         <table class="w-full text-xs">
                             <thead class="bg-slate-900 text-white">
                                 <tr>
-                                    <th class="px-6 py-4 text-left font-black uppercase tracking-widest">Descrição Técnica</th>
-                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Qtd</th>
-                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Valor Unit.</th>
-                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Subtotal</th>
+                                    <th class="px-6 py-4 text-left font-black uppercase tracking-widest">Descrição</th>
+                                    <th class="px-6 py-4 text-center font-black uppercase tracking-widest">Qtd</th>
+                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Unitário</th>
+                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Total</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 ${[...data.items, ...data.services].map(i => `
                                     <tr>
                                         <td class="px-6 py-4 font-bold text-slate-700">${i.name}</td>
-                                        <td class="px-6 py-4 text-right font-bold text-slate-500">${i.qty} ${i.unit}</td>
+                                        <td class="px-6 py-4 text-center font-bold text-slate-500">${i.qty} ${i.unit}</td>
                                         <td class="px-6 py-4 text-right text-slate-400">R$ ${i.price.toFixed(2)}</td>
                                         <td class="px-6 py-4 text-right font-black text-slate-900">R$ ${i.subtotal.toFixed(2)}</td>
                                     </tr>
@@ -397,38 +375,37 @@
                     </div>
                 </div>
 
-                <div class="bg-slate-900 text-white p-10 rounded-[40px] flex justify-between items-center shadow-2xl">
+                <div class="bg-slate-900 text-white p-10 rounded-[40px] flex flex-col md:flex-row justify-between items-center shadow-2xl gap-6">
                     <div>
-                        <h4 class="text-amber-500 font-black text-sm uppercase tracking-[0.2em] mb-2 italic">Investimento Total</h4>
-                        <p class="text-[10px] text-slate-400 font-medium uppercase max-w-xs leading-relaxed">Válido por 15 dias. Inclui todos os insumos e mão de obra conforme levantamento.</p>
+                        <h4 class="text-amber-500 font-black text-sm uppercase tracking-[0.2em] mb-2 italic">Valor Total da Proposta</h4>
+                        <p class="text-[10px] text-slate-400 font-medium uppercase max-w-xs leading-relaxed">Quantitativo técnico calculado para ${data.area.toFixed(2)}m². Valores sujeitos a alteração após medição local.</p>
                     </div>
-                    <div class="text-5xl font-black text-amber-500 tracking-tighter italic">R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                    <div class="text-6xl font-black text-amber-500 tracking-tighter italic">R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                 </div>
 
                 ${state.aiSummary ? `
-                    <div class="mt-12 p-8 bg-amber-50 border-l-[10px] border-amber-500 rounded-r-[30px]">
-                        <h4 class="text-amber-800 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <i class="fas fa-file-contract"></i> Memorial Descritivo de Obra
+                    <div class="mt-12 p-8 bg-amber-50 border-l-[12px] border-amber-500 rounded-r-[35px] shadow-sm">
+                        <h4 class="text-amber-800 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2 italic">
+                            <i class="fas fa-file-contract text-lg"></i> Memorial Técnico Descritivo
                         </h4>
-                        <div class="text-slate-700 text-xs leading-relaxed italic whitespace-pre-wrap">${state.aiSummary}</div>
+                        <div class="text-slate-700 text-xs leading-relaxed italic whitespace-pre-wrap font-medium">${state.aiSummary}</div>
                     </div>
                 ` : ''}
 
-                <div class="mt-24 grid grid-cols-2 gap-20">
-                    <div class="text-center border-t-2 border-slate-200 pt-4">
-                        <p class="text-[11px] font-black text-slate-900 uppercase">${state.company.name}</p>
-                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Responsável Técnico</p>
+                <div class="mt-24 grid grid-cols-1 md:grid-cols-2 gap-20">
+                    <div class="text-center border-t-2 border-slate-300 pt-5">
+                        <p class="text-[12px] font-black text-slate-900 uppercase">${state.company.name}</p>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Responsável pela Obra</p>
                     </div>
-                    <div class="text-center border-t-2 border-slate-200 pt-4">
-                        <p class="text-[11px] font-black text-slate-900 uppercase">${state.customer.name || 'Contratante'}</p>
-                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Aceite do Orçamento</p>
+                    <div class="text-center border-t-2 border-slate-300 pt-5">
+                        <p class="text-[12px] font-black text-slate-900 uppercase">${state.customer.name || 'Contratante'}</p>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Aceite do Cliente</p>
                     </div>
                 </div>
             `;
         }
 
         function renderAll() {
-            renderHeader();
             renderForm();
             renderDocument();
         }
