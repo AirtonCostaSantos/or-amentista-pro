@@ -56,6 +56,12 @@
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        .service-card {
+            @apply p-4 rounded-2xl border-2 transition-all duration-300;
+        }
+        .service-active { @apply border-amber-500 bg-amber-50; }
+        .service-inactive { @apply border-slate-100 bg-slate-50 opacity-60; }
     </style>
     <script type="importmap">
     {
@@ -102,14 +108,14 @@
                     <button onclick="window.switchTab('registry')" id="tab-btn-registry" class="flex-1 py-4 px-2 text-[10px] font-black uppercase tab-inactive">Catálogo</button>
                 </div>
 
-                <div class="p-6" id="form-container">
-                    <!-- O formulário NÃO será resetado durante a digitação para manter o cursor intacto -->
+                <div class="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar" id="form-container">
+                    <!-- O formulário -->
                 </div>
 
                 <div class="bg-slate-900 p-6 border-t-4 border-amber-500">
                     <h4 class="text-amber-500 font-black text-[11px] mb-2 uppercase tracking-widest">Normas Técnicas</h4>
                     <p class="text-[10px] text-slate-400 leading-relaxed font-medium">
-                        Levantamento automatizado conforme ABNT NBR 14715. Margem de segurança de 10% aplicada aos materiais de consumo.
+                        Cálculos conforme ABNT NBR 14715 e NBR 15758. Margem de 10% inclusa para insumos.
                     </p>
                 </div>
             </div>
@@ -126,18 +132,24 @@
     <script type="module">
         import { GoogleGenAI } from "@google/genai";
 
-        const storageKey = 'orc_pro_v11_stable';
+        const storageKey = 'orc_pro_v12_full';
         const defaultRegistry = {
             materials: [
                 { name: 'Chapa Drywall ST 1.20x2.40', price: 49.90, unit: 'un' },
                 { name: 'Chapa Drywall RU (Verde)', price: 69.50, unit: 'un' },
                 { name: 'Perfil F-530 (3m)', price: 19.50, unit: 'un' },
                 { name: 'Massa Drywall 20kg', price: 92.00, unit: 'un' },
-                { name: 'Parafuso TN25 (Cento)', price: 16.00, unit: 'un' }
+                { name: 'Parafuso TN25 (Cento)', price: 16.00, unit: 'un' },
+                { name: 'Tinta Acrílica Premium (18L)', price: 340.00, unit: 'un' },
+                { name: 'Selador Acrílico (18L)', price: 180.00, unit: 'un' },
+                { name: 'Lixa Massa 120/180', price: 3.50, unit: 'un' },
+                { name: 'Caixa de Luz 4x2 Drywall', price: 4.50, unit: 'un' },
+                { name: 'Cabo Flexível 2.5mm (m)', price: 3.80, unit: 'm' }
             ],
             services: [
-                { name: 'Mão de Obra Forro Liso', price: 38.00, unit: 'm²' },
-                { name: 'Pintura (Mão de Obra)', price: 20.00, unit: 'm²' }
+                { name: 'Instalação de Drywall', price: 40.00, unit: 'm²' },
+                { name: 'Pintura Completa (3 demãos)', price: 25.00, unit: 'm²' },
+                { name: 'Instalação Elétrica (Ponto)', price: 45.00, unit: 'un' }
             ]
         };
 
@@ -148,6 +160,10 @@
             width: 4,
             isDouble: false,
             boardType: 'ST (Branca)',
+            hasPainting: false,
+            paintCoats: 2,
+            hasElectrical: false,
+            elecPoints: 4,
             customer: { name: '', email: '', document: '', address: '', contact: '', city: '' },
             customersList: [],
             company: { name: 'Sua Empresa de Drywall', email: 'contato@suaempresa.com.br', document: '00.000.000/0001-00', address: 'Rua Principal, 100', contact: '(11) 90000-0000', city: 'São Paulo - SP' },
@@ -156,111 +172,67 @@
             loadingAi: false
         };
 
-        // Garantir que customersList exista no estado antigo
-        if (!state.customersList) state.customersList = [];
-
         function save() {
             localStorage.setItem(storageKey, JSON.stringify(state));
         }
 
-        // CÁLCULOS TÉCNICOS
+        // CÁLCULOS TÉCNICOS INTEGRADOS
         function calculate() {
             const area = state.length * state.width;
             const perimeter = (state.length * 2) + (state.width * 2);
             const margin = 1.10;
             
-            const results = {
-                area: area,
-                items: [
-                    { name: `Placa Drywall ${state.boardType}`, qty: Math.ceil((area / 2.88) * margin * (state.isDouble ? 2 : 1)), unit: 'un' },
-                    { name: 'Perfil F-530 (3m)', qty: Math.ceil((area * 1.5) / 3), unit: 'un' },
-                    { name: 'Cantoneira Metálica 3m', qty: Math.ceil(perimeter / 3), unit: 'un' },
-                    { name: 'Massa Drywall 20kg', qty: Math.ceil(area / 15), unit: 'un' },
-                    { name: 'Fita Telada (Rolos)', qty: Math.ceil(area / 25), unit: 'un' }
-                ],
-                services: [
-                    { name: `Execução de ${state.mode}`, qty: area, unit: 'm²' }
-                ],
-                total: 0
-            };
+            const items = [
+                { name: `Placa Drywall ${state.boardType}`, qty: Math.ceil((area / 2.88) * margin * (state.isDouble ? 2 : 1)), unit: 'un' },
+                { name: 'Perfil F-530 (3m)', qty: Math.ceil((area * 1.5) / 3), unit: 'un' },
+                { name: 'Cantoneira Metálica 3m', qty: Math.ceil(perimeter / 3), unit: 'un' },
+                { name: 'Massa Drywall 20kg', qty: Math.ceil(area / 15), unit: 'un' },
+                { name: 'Fita Telada (Rolos)', qty: Math.ceil(area / 25), unit: 'un' }
+            ];
 
-            [...results.items, ...results.services].forEach(item => {
+            const services = [
+                { name: 'Instalação de Drywall', qty: area, unit: 'm²' }
+            ];
+
+            // Injetar Pintura
+            if (state.hasPainting) {
+                items.push({ name: 'Tinta Acrílica Premium (18L)', qty: Math.ceil(area / 30), unit: 'un' });
+                items.push({ name: 'Selador Acrílico (18L)', qty: Math.ceil(area / 60), unit: 'un' });
+                items.push({ name: 'Lixa Massa 120/180', qty: Math.ceil(area / 5), unit: 'un' });
+                services.push({ name: 'Pintura Completa (3 demãos)', qty: area, unit: 'm²' });
+            }
+
+            // Injetar Elétrica
+            if (state.hasElectrical) {
+                items.push({ name: 'Caixa de Luz 4x2 Drywall', qty: state.elecPoints, unit: 'un' });
+                items.push({ name: 'Cabo Flexível 2.5mm (m)', qty: state.elecPoints * 5, unit: 'm' });
+                services.push({ name: 'Instalação Elétrica (Ponto)', qty: state.elecPoints, unit: 'un' });
+            }
+
+            let total = 0;
+            const fullResults = [...items, ...services].map(item => {
                 const reg = [...state.registry.materials, ...state.registry.services].find(r => item.name.toLowerCase().includes(r.name.toLowerCase()) || r.name.toLowerCase().includes(item.name.toLowerCase()));
-                item.price = reg ? reg.price : 0;
-                item.subtotal = item.qty * item.price;
-                results.total += item.subtotal;
+                const price = reg ? reg.price : 0;
+                const subtotal = item.qty * price;
+                total += subtotal;
+                return { ...item, price, subtotal };
             });
 
-            return results;
+            return { area, items: fullResults.filter(i => items.some(x => x.name === i.name)), services: fullResults.filter(i => services.some(x => x.name === i.name)), total };
         }
 
-        // NAVEGAÇÃO E ATUALIZAÇÃO
         window.switchTab = (tab) => {
             state.activeTab = tab;
             renderAll();
         };
 
-        // Função de atualização estável: NÃO reconstrói o formulário
         window.updateInput = (obj, key, val) => {
-            if (obj) {
-                state[obj][key] = val;
-            } else {
-                state[key] = val;
-            }
+            if (obj) state[obj][key] = val; else state[key] = val;
             save();
-            renderDocument(); // Apenas atualiza o papel do orçamento à direita
-        };
-
-        // FUNÇÕES DE CATÁLOGO DE CLIENTES
-        window.saveCustomerToCatalog = () => {
-            if (!state.customer.name.trim()) return alert("Insira o nome do cliente.");
-            
-            const existingIndex = state.customersList.findIndex(c => c.name === state.customer.name);
-            if (existingIndex > -1) {
-                state.customersList[existingIndex] = { ...state.customer };
-                alert("Dados do cliente atualizados no catálogo.");
-            } else {
-                state.customersList.push({ ...state.customer });
-                alert("Cliente salvo no catálogo.");
-            }
-            save();
-            renderForm();
-        };
-
-        window.loadCustomerFromCatalog = (index) => {
-            state.customer = { ...state.customersList[index] };
-            save();
-            renderForm();
             renderDocument();
         };
 
-        window.deleteCustomerFromCatalog = (index) => {
-            if (confirm("Deseja realmente excluir este cliente?")) {
-                state.customersList.splice(index, 1);
-                save();
-                renderForm();
-            }
-        };
-
-        window.getAiAnalysis = async () => {
-            if (state.loadingAi) return;
-            state.loadingAi = true;
-            renderAll();
-            const calc = calculate();
-            try {
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const prompt = `Analise este orçamento de drywall. Área: ${calc.area}m2. Custo: R$ ${calc.total}. Escreva um memorial descritivo curto em 3 parágrafos focando em qualidade e normas ABNT.`;
-                const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-                state.aiSummary = response.text;
-            } catch (e) {
-                state.aiSummary = "Levantamento técnico validado seguindo os padrões de engenharia de interiores para sistemas de gesso acartonado.";
-            } finally {
-                state.loadingAi = false;
-                renderAll();
-            }
-        };
-
-        // RENDERIZAÇÃO DO FORMULÁRIO (SÓ OCORRE NA TROCA DE ABA)
+        // RENDERIZAÇÃO DO FORMULÁRIO COM SEÇÕES EXPANSÍVEIS
         function renderForm() {
             const container = document.getElementById('form-container');
             const tab = state.activeTab;
@@ -272,30 +244,50 @@
 
             if (tab === 'project') {
                 container.innerHTML = `
-                    <div class="space-y-4">
-                        <div>
-                            <label class="form-label">Tipo de Serviço</label>
-                            <select onchange="window.updateInput(null, 'mode', this.value); window.renderForm();">
+                    <div class="space-y-6">
+                        <div class="bg-slate-50 p-5 rounded-2xl border-2 border-slate-100">
+                            <label class="form-label">Estrutura Drywall</label>
+                            <select class="mb-4" onchange="window.updateInput(null, 'mode', this.value); window.renderForm();">
                                 <option ${state.mode === 'Forro Liso' ? 'selected' : ''}>Forro Liso</option>
                                 <option ${state.mode === 'Forro Tabicado' ? 'selected' : ''}>Forro Tabicado</option>
                                 <option ${state.mode === 'Parede Drywall' ? 'selected' : ''}>Parede Drywall</option>
                             </select>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="form-label">Compr. (m)</label><input type="number" step="0.1" value="${state.length}" oninput="window.updateInput(null, 'length', parseFloat(this.value))"></div>
+                                <div><label class="form-label">Largura (m)</label><input type="number" step="0.1" value="${state.width}" oninput="window.updateInput(null, 'width', parseFloat(this.value))"></div>
+                            </div>
+                            <div class="mt-4 flex items-center gap-3">
+                                <input type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="window.updateInput(null, 'isDouble', this.checked)" class="w-5 h-5 accent-amber-500">
+                                <label class="text-[10px] font-black uppercase text-slate-600">Chapa Dupla</label>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label class="form-label">Compr. (m)</label><input type="number" step="0.1" value="${state.length}" oninput="window.updateInput(null, 'length', parseFloat(this.value))"></div>
-                            <div><label class="form-label">Largura (m)</label><input type="number" step="0.1" value="${state.width}" oninput="window.updateInput(null, 'width', parseFloat(this.value))"></div>
+
+                        <!-- SEÇÃO PINTURA -->
+                        <div class="service-card ${state.hasPainting ? 'service-active' : 'service-inactive'}">
+                            <div class="flex justify-between items-center mb-4">
+                                <label class="text-[11px] font-black uppercase text-amber-600 italic">Pintura e Acabamento</label>
+                                <input type="checkbox" ${state.hasPainting ? 'checked' : ''} onchange="window.updateInput(null, 'hasPainting', this.checked); window.renderForm();" class="w-6 h-6 accent-amber-500">
+                            </div>
+                            ${state.hasPainting ? `
+                                <div>
+                                    <label class="form-label">Demãos de Tinta</label>
+                                    <input type="number" value="${state.paintCoats}" oninput="window.updateInput(null, 'paintCoats', parseInt(this.value))">
+                                </div>
+                            ` : '<p class="text-[9px] font-bold text-slate-400">Desativado</p>'}
                         </div>
-                        <div>
-                            <label class="form-label">Material da Chapa</label>
-                            <select onchange="window.updateInput(null, 'boardType', this.value)">
-                                <option ${state.boardType === 'ST (Branca)' ? 'selected' : ''}>Standard (Branca)</option>
-                                <option ${state.boardType === 'RU (Verde)' ? 'selected' : ''}>RU (Verde/Umidade)</option>
-                                <option ${state.boardType === 'RF (Rosa)' ? 'selected' : ''}>RF (Rosa/Fogo)</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center gap-3 p-4 bg-amber-50 rounded-xl border-2 border-amber-100">
-                            <input type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="window.updateInput(null, 'isDouble', this.checked)" class="w-5 h-5 accent-amber-500">
-                            <label class="text-[10px] font-black uppercase text-amber-800">Chapa Dupla (Reforço)</label>
+
+                        <!-- SEÇÃO ELÉTRICA -->
+                        <div class="service-card ${state.hasElectrical ? 'service-active' : 'service-inactive'}">
+                            <div class="flex justify-between items-center mb-4">
+                                <label class="text-[11px] font-black uppercase text-amber-600 italic">Infra Elétrica</label>
+                                <input type="checkbox" ${state.hasElectrical ? 'checked' : ''} onchange="window.updateInput(null, 'hasElectrical', this.checked); window.renderForm();" class="w-6 h-6 accent-amber-500">
+                            </div>
+                            ${state.hasElectrical ? `
+                                <div>
+                                    <label class="form-label">Pontos de Luz/Tomada</label>
+                                    <input type="number" value="${state.elecPoints}" oninput="window.updateInput(null, 'elecPoints', parseInt(this.value))">
+                                </div>
+                            ` : '<p class="text-[9px] font-bold text-slate-400">Desativado</p>'}
                         </div>
                     </div>
                 `;
@@ -305,44 +297,27 @@
                     <div class="space-y-5">
                         <div class="flex justify-between items-center border-b-2 border-slate-50 pb-2">
                             <h3 class="text-[11px] font-black uppercase text-amber-600 italic">Dados do Cliente</h3>
-                            <button onclick="window.saveCustomerToCatalog()" class="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-amber-600 transition-all shadow-md">
-                                <i class="fas fa-save mr-1"></i> Salvar Cliente
+                            <button onclick="window.saveCustomerToCatalog()" class="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-amber-600 shadow-md transition-all">
+                                <i class="fas fa-save mr-1"></i> Salvar
                             </button>
                         </div>
-                        
                         <div class="space-y-4">
-                            <div><label class="form-label">Nome / Razão Social</label><input type="text" value="${target.name}" oninput="window.updateInput('customer', 'name', this.value)" placeholder="Nome do Cliente"></div>
-                            <div><label class="form-label">Documento (CPF/CNPJ)</label><input type="text" value="${target.document}" oninput="window.updateInput('customer', 'document', this.value)" placeholder="000.000.000-00"></div>
-                            <div><label class="form-label">E-mail</label><input type="text" value="${target.email}" oninput="window.updateInput('customer', 'email', this.value)" placeholder="exemplo@email.com"></div>
-                            <div><label class="form-label">Telefone / WhatsApp</label><input type="text" value="${target.contact}" oninput="window.updateInput('customer', 'contact', this.value)" placeholder="(00) 00000-0000"></div>
-                            <div><label class="form-label">Cidade / Estado</label><input type="text" value="${target.city}" oninput="window.updateInput('customer', 'city', this.value)" placeholder="Cidade - UF"></div>
-                            <div><label class="form-label">Endereço Completo</label><input type="text" value="${target.address}" oninput="window.updateInput('customer', 'address', this.value)" placeholder="Rua, Número, Bairro"></div>
+                            <div><label class="form-label">Nome Completo</label><input type="text" value="${target.name}" oninput="window.updateInput('customer', 'name', this.value)"></div>
+                            <div><label class="form-label">E-mail</label><input type="text" value="${target.email}" oninput="window.updateInput('customer', 'email', this.value)"></div>
+                            <div><label class="form-label">Telefone</label><input type="text" value="${target.contact}" oninput="window.updateInput('customer', 'contact', this.value)"></div>
+                            <div><label class="form-label">Endereço Obra</label><input type="text" value="${target.address}" oninput="window.updateInput('customer', 'address', this.value)"></div>
                         </div>
-
                         <div class="pt-2">
-                            <h4 class="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest italic">Catálogo de Clientes</h4>
-                            <div class="max-h-48 overflow-y-auto custom-scrollbar border-2 border-slate-50 rounded-2xl bg-slate-50">
-                                ${state.customersList.length === 0 ? `
-                                    <p class="p-6 text-center text-[10px] font-bold text-slate-300 uppercase">Nenhum cliente salvo</p>
-                                ` : `
-                                    <div class="divide-y divide-slate-200">
-                                        ${state.customersList.map((c, idx) => `
-                                            <div class="flex justify-between items-center p-3 hover:bg-white transition-colors cursor-pointer group">
-                                                <div onclick="window.loadCustomerFromCatalog(${idx})" class="flex-1 overflow-hidden pr-2">
-                                                    <p class="text-[10px] font-black text-slate-700 truncate">${c.name}</p>
-                                                    <p class="text-[8px] font-bold text-slate-400 truncate uppercase mt-0.5">${c.city || 'Cidade não inf.'}</p>
-                                                </div>
-                                                <button onclick="window.deleteCustomerFromCatalog(${idx})" class="text-slate-300 hover:text-red-500 transition-colors px-2 opacity-0 group-hover:opacity-100">
-                                                    <i class="fas fa-trash-alt text-[10px]"></i>
-                                                </button>
-                                            </div>
-                                        `).join('')}
+                            <label class="form-label !mb-3">Catálogo de Clientes</label>
+                            <div class="max-h-40 overflow-y-auto custom-scrollbar border-2 border-slate-50 rounded-2xl bg-slate-50 divide-y divide-slate-100">
+                                ${state.customersList.map((c, idx) => `
+                                    <div onclick="window.loadCustomerFromCatalog(${idx})" class="p-3 hover:bg-white cursor-pointer group flex justify-between items-center">
+                                        <div class="overflow-hidden"><p class="text-[10px] font-black text-slate-700 truncate">${c.name}</p></div>
+                                        <button onclick="event.stopPropagation(); window.deleteCustomerFromCatalog(${idx})" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><i class="fas fa-trash"></i></button>
                                     </div>
-                                `}
+                                `).join('')}
                             </div>
                         </div>
-                        
-                        <button onclick="window.clearContact('customer')" class="w-full py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Limpar Campos</button>
                     </div>
                 `;
             } else if (tab === 'company') {
@@ -350,23 +325,20 @@
                 container.innerHTML = `
                     <div class="space-y-5">
                         <h3 class="text-[11px] font-black uppercase text-amber-600 italic border-b-2 border-slate-50 pb-2">Dados da Empresa</h3>
-                        <div><label class="form-label">Nome da Empresa</label><input type="text" value="${target.name}" oninput="window.updateInput('company', 'name', this.value)" placeholder="Nome da Sua Empresa"></div>
-                        <div><label class="form-label">CNPJ</label><input type="text" value="${target.document}" oninput="window.updateInput('company', 'document', this.value)" placeholder="00.000.000/0001-00"></div>
-                        <div><label class="form-label">E-mail Corporativo</label><input type="text" value="${target.email}" oninput="window.updateInput('company', 'email', this.value)" placeholder="contato@empresa.com.br"></div>
-                        <div><label class="form-label">Telefone Comercial</label><input type="text" value="${target.contact}" oninput="window.updateInput('company', 'contact', this.value)" placeholder="(00) 0000-0000"></div>
-                        <div><label class="form-label">Sede (Cidade - UF)</label><input type="text" value="${target.city}" oninput="window.updateInput('company', 'city', this.value)" placeholder="Cidade - UF"></div>
-                        <div><label class="form-label">Endereço Comercial</label><input type="text" value="${target.address}" oninput="window.updateInput('company', 'address', this.value)" placeholder="Rua das Obras, 100"></div>
-                        <button onclick="window.clearContact('company')" class="w-full py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Limpar Campos</button>
+                        <div><label class="form-label">Razão Social</label><input type="text" value="${target.name}" oninput="window.updateInput('company', 'name', this.value)"></div>
+                        <div><label class="form-label">CNPJ</label><input type="text" value="${target.document}" oninput="window.updateInput('company', 'document', this.value)"></div>
+                        <div><label class="form-label">WhatsApp Comercial</label><input type="text" value="${target.contact}" oninput="window.updateInput('company', 'contact', this.value)"></div>
+                        <div><label class="form-label">Endereço / Sede</label><input type="text" value="${target.address}" oninput="window.updateInput('company', 'address', this.value)"></div>
                     </div>
                 `;
             } else if (tab === 'registry') {
                 container.innerHTML = `
                     <div class="space-y-4">
-                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Catálogo de Insumos & Serviços</h3>
-                        <div class="max-h-[450px] overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Catálogo Global de Preços</h3>
+                        <div class="max-h-[50vh] overflow-y-auto custom-scrollbar space-y-3 pr-2">
                             ${[...state.registry.materials, ...state.registry.services].map((item, idx) => `
                                 <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                                    <p class="text-[10px] font-black text-slate-700 leading-tight mb-2">${item.name}</p>
+                                    <p class="text-[9px] font-black text-slate-500 leading-tight mb-1 uppercase tracking-tighter">${item.name}</p>
                                     <div class="flex items-center gap-2">
                                         <span class="text-[10px] font-black text-slate-400">R$</span>
                                         <input type="number" step="0.01" value="${item.price}" class="!py-1.5 !px-3 !text-xs" oninput="window.updatePrice(${idx}, parseFloat(this.value))">
@@ -386,14 +358,38 @@
             renderDocument();
         };
 
-        window.clearContact = (tab) => {
-            state[tab] = { name: '', email: '', document: '', address: '', contact: '', city: '' };
-            save();
-            renderForm();
-            renderDocument();
+        window.saveCustomerToCatalog = () => {
+            if (!state.customer.name.trim()) return alert("Nome vazio.");
+            state.customersList.push({ ...state.customer });
+            save(); renderForm();
         };
 
-        // RENDERIZAÇÃO DO PAPEL DO ORÇAMENTO (ATUALIZAÇÃO EM TEMPO REAL)
+        window.loadCustomerFromCatalog = (idx) => {
+            state.customer = { ...state.customersList[idx] };
+            save(); renderAll();
+        };
+
+        window.deleteCustomerFromCatalog = (idx) => {
+            state.customersList.splice(idx, 1);
+            save(); renderForm();
+        };
+
+        window.getAiAnalysis = async () => {
+            if (state.loadingAi) return;
+            state.loadingAi = true; renderAll();
+            const data = calculate();
+            try {
+                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                const prompt = `Gere um memorial técnico descritivo para este orçamento de ${data.area}m². Inclui drywall, ${state.hasPainting ? 'pintura,' : ''} e ${state.hasElectrical ? 'elétrica.' : ''}. Foco em normas ABNT NBR 14715 e 15758. Max 3 parágrafos curtos.`;
+                const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+                state.aiSummary = response.text;
+            } catch (e) {
+                state.aiSummary = "Execução técnica em conformidade com os padrões de gesso acartonado e elétrica básica, garantindo durabilidade e acabamento premium.";
+            } finally {
+                state.loadingAi = false; renderAll();
+            }
+        };
+
         function renderDocument() {
             const data = calculate();
             const el = document.getElementById('document-render');
@@ -401,36 +397,32 @@
             el.innerHTML = `
                 <div class="flex flex-col md:flex-row justify-between items-start border-b-8 border-slate-900 pb-8 mb-8 gap-6">
                     <div>
-                        <h2 class="text-3xl font-black text-slate-900 italic tracking-tighter uppercase leading-none">Proposta Comercial</h2>
-                        <p class="text-amber-500 font-black text-xs uppercase tracking-[0.3em] mt-2 italic">Orçamento de Drywall & Forros</p>
+                        <h2 class="text-3xl font-black text-slate-900 italic uppercase leading-none">Orçamento Pro</h2>
+                        <p class="text-amber-500 font-black text-xs uppercase tracking-[0.3em] mt-2 italic">Levantamento de Insumos e Mão de Obra</p>
                     </div>
                     <div class="md:text-right">
-                        <p class="text-[11px] font-black text-slate-400 uppercase">Gerado em</p>
+                        <p class="text-[11px] font-black text-slate-400 uppercase">Data</p>
                         <p class="text-sm font-black text-slate-900">${new Date().toLocaleDateString('pt-BR')}</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
                     <div class="space-y-1">
-                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">PRESTADOR DE SERVIÇOS</h4>
+                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">PRESTADOR</h4>
                         <p class="text-xl font-black text-slate-900 leading-tight">${state.company.name || '---'}</p>
                         <p class="text-[11px] text-slate-500 font-medium">CNPJ: ${state.company.document || '---'}</p>
-                        <p class="text-[11px] text-slate-500 font-medium">E-mail: ${state.company.email || '---'}</p>
                         <p class="text-[11px] text-slate-500 font-medium">Fone: ${state.company.contact || '---'}</p>
-                        <p class="text-[11px] text-slate-500 font-medium">${state.company.city || ''}</p>
                     </div>
                     <div class="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100 space-y-1">
-                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">DADOS DO CLIENTE</h4>
+                        <h4 class="text-amber-500 font-black text-[10px] uppercase tracking-widest mb-4 italic">CLIENTE</h4>
                         <p class="text-lg font-black text-slate-800 leading-tight">${state.customer.name || '---'}</p>
-                        <p class="text-[11px] text-slate-500 font-medium">Documento: ${state.customer.document || '---'}</p>
-                        <p class="text-[11px] text-slate-500 font-medium">Endereço: ${state.customer.address || '---'}</p>
-                        <p class="text-[11px] text-slate-500 font-medium">Contato: ${state.customer.contact || '---'}</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Local: ${state.customer.address || '---'}</p>
                     </div>
                 </div>
 
                 <div class="mb-10">
                     <h3 class="text-xs font-black text-slate-900 uppercase mb-4 flex items-center gap-3">
-                        <span class="w-10 h-1 bg-amber-500"></span> Itens do Orçamento (${state.mode})
+                        <span class="w-10 h-1 bg-amber-500"></span> Composição da Proposta (${data.area.toFixed(2)}m²)
                     </h3>
                     <div class="border-2 border-slate-100 rounded-2xl overflow-hidden">
                         <table class="w-full text-xs">
@@ -438,8 +430,7 @@
                                 <tr>
                                     <th class="px-6 py-4 text-left font-black uppercase tracking-widest">Descrição</th>
                                     <th class="px-6 py-4 text-center font-black uppercase tracking-widest">Qtd</th>
-                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Unitário</th>
-                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Total</th>
+                                    <th class="px-6 py-4 text-right font-black uppercase tracking-widest">Subtotal</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -447,7 +438,6 @@
                                     <tr>
                                         <td class="px-6 py-4 font-bold text-slate-700">${i.name}</td>
                                         <td class="px-6 py-4 text-center font-bold text-slate-500">${i.qty} ${i.unit}</td>
-                                        <td class="px-6 py-4 text-right text-slate-400">R$ ${i.price.toFixed(2)}</td>
                                         <td class="px-6 py-4 text-right font-black text-slate-900">R$ ${i.subtotal.toFixed(2)}</td>
                                     </tr>
                                 `).join('')}
@@ -458,16 +448,16 @@
 
                 <div class="bg-slate-900 text-white p-10 rounded-[40px] flex flex-col md:flex-row justify-between items-center shadow-2xl gap-6">
                     <div>
-                        <h4 class="text-amber-500 font-black text-sm uppercase tracking-[0.2em] mb-2 italic">Valor Total da Proposta</h4>
-                        <p class="text-[10px] text-slate-400 font-medium uppercase max-w-xs leading-relaxed">Quantitativo técnico calculado para ${data.area.toFixed(2)}m². Valores sujeitos a alteração após medição local.</p>
+                        <h4 class="text-amber-500 font-black text-sm uppercase tracking-[0.2em] mb-2 italic">Total do Investimento</h4>
+                        <p class="text-[10px] text-slate-400 font-medium uppercase max-w-xs">Inclui materiais e serviços listados acima para ${data.area.toFixed(2)}m².</p>
                     </div>
                     <div class="text-6xl font-black text-amber-500 tracking-tighter italic">R$ ${data.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                 </div>
 
                 ${state.aiSummary ? `
-                    <div class="mt-12 p-8 bg-amber-50 border-l-[12px] border-amber-500 rounded-r-[35px] shadow-sm">
+                    <div class="mt-12 p-8 bg-amber-50 border-l-[12px] border-amber-500 rounded-r-[35px]">
                         <h4 class="text-amber-800 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2 italic">
-                            <i class="fas fa-file-contract text-lg"></i> Memorial Técnico Descritivo
+                            <i class="fas fa-file-contract"></i> Memorial Técnico Descritivo
                         </h4>
                         <div class="text-slate-700 text-xs leading-relaxed italic whitespace-pre-wrap font-medium">${state.aiSummary}</div>
                     </div>
@@ -475,22 +465,16 @@
 
                 <div class="mt-24 grid grid-cols-1 md:grid-cols-2 gap-20">
                     <div class="text-center border-t-2 border-slate-300 pt-5">
-                        <p class="text-[12px] font-black text-slate-900 uppercase">${state.company.name}</p>
-                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Responsável pela Obra</p>
+                        <p class="text-[12px] font-black text-slate-900 uppercase">Assinatura do Prestador</p>
                     </div>
                     <div class="text-center border-t-2 border-slate-300 pt-5">
-                        <p class="text-[12px] font-black text-slate-900 uppercase">${state.customer.name || 'Contratante'}</p>
-                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">Aceite do Cliente</p>
+                        <p class="text-[12px] font-black text-slate-900 uppercase">Assinatura do Cliente</p>
                     </div>
                 </div>
             `;
         }
 
-        function renderAll() {
-            renderForm();
-            renderDocument();
-        }
-
+        function renderAll() { renderForm(); renderDocument(); }
         window.onload = () => renderAll();
     </script>
 </body>
