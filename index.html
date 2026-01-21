@@ -99,7 +99,7 @@
                     <button onclick="window.switchTab('project')" id="tab-btn-project" class="flex-1 py-4 px-2 text-[10px] font-black uppercase tab-active">Projeto</button>
                     <button onclick="window.switchTab('customer')" id="tab-btn-customer" class="flex-1 py-4 px-2 text-[10px] font-black uppercase tab-inactive">Cliente</button>
                     <button onclick="window.switchTab('company')" id="tab-btn-company" class="flex-1 py-4 px-2 text-[10px] font-black uppercase tab-inactive">Empresa</button>
-                    <button onclick="window.switchTab('registry')" id="tab-btn-registry" class="flex-1 py-4 px-2 text-[10px] font-black uppercase tab-inactive">Preços</button>
+                    <button onclick="window.switchTab('registry')" id="tab-btn-registry" class="flex-1 py-4 px-2 text-[10px] font-black uppercase tab-inactive">Catálogo</button>
                 </div>
 
                 <div class="p-6" id="form-container">
@@ -149,11 +149,15 @@
             isDouble: false,
             boardType: 'ST (Branca)',
             customer: { name: '', email: '', document: '', address: '', contact: '', city: '' },
+            customersList: [],
             company: { name: 'Sua Empresa de Drywall', email: 'contato@suaempresa.com.br', document: '00.000.000/0001-00', address: 'Rua Principal, 100', contact: '(11) 90000-0000', city: 'São Paulo - SP' },
             registry: defaultRegistry,
             aiSummary: '',
             loadingAi: false
         };
+
+        // Garantir que customersList exista no estado antigo
+        if (!state.customersList) state.customersList = [];
 
         function save() {
             localStorage.setItem(storageKey, JSON.stringify(state));
@@ -205,6 +209,37 @@
             }
             save();
             renderDocument(); // Apenas atualiza o papel do orçamento à direita
+        };
+
+        // FUNÇÕES DE CATÁLOGO DE CLIENTES
+        window.saveCustomerToCatalog = () => {
+            if (!state.customer.name.trim()) return alert("Insira o nome do cliente.");
+            
+            const existingIndex = state.customersList.findIndex(c => c.name === state.customer.name);
+            if (existingIndex > -1) {
+                state.customersList[existingIndex] = { ...state.customer };
+                alert("Dados do cliente atualizados no catálogo.");
+            } else {
+                state.customersList.push({ ...state.customer });
+                alert("Cliente salvo no catálogo.");
+            }
+            save();
+            renderForm();
+        };
+
+        window.loadCustomerFromCatalog = (index) => {
+            state.customer = { ...state.customersList[index] };
+            save();
+            renderForm();
+            renderDocument();
+        };
+
+        window.deleteCustomerFromCatalog = (index) => {
+            if (confirm("Deseja realmente excluir este cliente?")) {
+                state.customersList.splice(index, 1);
+                save();
+                renderForm();
+            }
         };
 
         window.getAiAnalysis = async () => {
@@ -264,24 +299,70 @@
                         </div>
                     </div>
                 `;
-            } else if (tab === 'customer' || tab === 'company') {
-                const target = state[tab];
+            } else if (tab === 'customer') {
+                const target = state.customer;
                 container.innerHTML = `
                     <div class="space-y-5">
-                        <h3 class="text-[11px] font-black uppercase text-amber-600 italic border-b-2 border-slate-50 pb-2">Informações de Contato</h3>
-                        <div><label class="form-label">Nome Completo / Razão Social</label><input type="text" value="${target.name}" oninput="window.updateInput('${tab}', 'name', this.value)" placeholder="Nome do Responsável"></div>
-                        <div><label class="form-label">Documento (CPF/CNPJ)</label><input type="text" value="${target.document}" oninput="window.updateInput('${tab}', 'document', this.value)" placeholder="000.000.000-00"></div>
-                        <div><label class="form-label">E-mail de Contato</label><input type="text" value="${target.email}" oninput="window.updateInput('${tab}', 'email', this.value)" placeholder="exemplo@email.com"></div>
-                        <div><label class="form-label">Telefone / WhatsApp</label><input type="text" value="${target.contact}" oninput="window.updateInput('${tab}', 'contact', this.value)" placeholder="(00) 00000-0000"></div>
-                        <div><label class="form-label">Cidade / Estado</label><input type="text" value="${target.city}" oninput="window.updateInput('${tab}', 'city', this.value)" placeholder="Cidade - UF"></div>
-                        <div><label class="form-label">Endereço da Obra</label><input type="text" value="${target.address}" oninput="window.updateInput('${tab}', 'address', this.value)" placeholder="Rua, Número, Bairro"></div>
-                        <button onclick="window.clearContact('${tab}')" class="w-full py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Limpar Campos</button>
+                        <div class="flex justify-between items-center border-b-2 border-slate-50 pb-2">
+                            <h3 class="text-[11px] font-black uppercase text-amber-600 italic">Dados do Cliente</h3>
+                            <button onclick="window.saveCustomerToCatalog()" class="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase hover:bg-amber-600 transition-all shadow-md">
+                                <i class="fas fa-save mr-1"></i> Salvar Cliente
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div><label class="form-label">Nome / Razão Social</label><input type="text" value="${target.name}" oninput="window.updateInput('customer', 'name', this.value)" placeholder="Nome do Cliente"></div>
+                            <div><label class="form-label">Documento (CPF/CNPJ)</label><input type="text" value="${target.document}" oninput="window.updateInput('customer', 'document', this.value)" placeholder="000.000.000-00"></div>
+                            <div><label class="form-label">E-mail</label><input type="text" value="${target.email}" oninput="window.updateInput('customer', 'email', this.value)" placeholder="exemplo@email.com"></div>
+                            <div><label class="form-label">Telefone / WhatsApp</label><input type="text" value="${target.contact}" oninput="window.updateInput('customer', 'contact', this.value)" placeholder="(00) 00000-0000"></div>
+                            <div><label class="form-label">Cidade / Estado</label><input type="text" value="${target.city}" oninput="window.updateInput('customer', 'city', this.value)" placeholder="Cidade - UF"></div>
+                            <div><label class="form-label">Endereço Completo</label><input type="text" value="${target.address}" oninput="window.updateInput('customer', 'address', this.value)" placeholder="Rua, Número, Bairro"></div>
+                        </div>
+
+                        <div class="pt-2">
+                            <h4 class="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest italic">Catálogo de Clientes</h4>
+                            <div class="max-h-48 overflow-y-auto custom-scrollbar border-2 border-slate-50 rounded-2xl bg-slate-50">
+                                ${state.customersList.length === 0 ? `
+                                    <p class="p-6 text-center text-[10px] font-bold text-slate-300 uppercase">Nenhum cliente salvo</p>
+                                ` : `
+                                    <div class="divide-y divide-slate-200">
+                                        ${state.customersList.map((c, idx) => `
+                                            <div class="flex justify-between items-center p-3 hover:bg-white transition-colors cursor-pointer group">
+                                                <div onclick="window.loadCustomerFromCatalog(${idx})" class="flex-1 overflow-hidden pr-2">
+                                                    <p class="text-[10px] font-black text-slate-700 truncate">${c.name}</p>
+                                                    <p class="text-[8px] font-bold text-slate-400 truncate uppercase mt-0.5">${c.city || 'Cidade não inf.'}</p>
+                                                </div>
+                                                <button onclick="window.deleteCustomerFromCatalog(${idx})" class="text-slate-300 hover:text-red-500 transition-colors px-2 opacity-0 group-hover:opacity-100">
+                                                    <i class="fas fa-trash-alt text-[10px]"></i>
+                                                </button>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                        
+                        <button onclick="window.clearContact('customer')" class="w-full py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Limpar Campos</button>
+                    </div>
+                `;
+            } else if (tab === 'company') {
+                const target = state.company;
+                container.innerHTML = `
+                    <div class="space-y-5">
+                        <h3 class="text-[11px] font-black uppercase text-amber-600 italic border-b-2 border-slate-50 pb-2">Dados da Empresa</h3>
+                        <div><label class="form-label">Nome da Empresa</label><input type="text" value="${target.name}" oninput="window.updateInput('company', 'name', this.value)" placeholder="Nome da Sua Empresa"></div>
+                        <div><label class="form-label">CNPJ</label><input type="text" value="${target.document}" oninput="window.updateInput('company', 'document', this.value)" placeholder="00.000.000/0001-00"></div>
+                        <div><label class="form-label">E-mail Corporativo</label><input type="text" value="${target.email}" oninput="window.updateInput('company', 'email', this.value)" placeholder="contato@empresa.com.br"></div>
+                        <div><label class="form-label">Telefone Comercial</label><input type="text" value="${target.contact}" oninput="window.updateInput('company', 'contact', this.value)" placeholder="(00) 0000-0000"></div>
+                        <div><label class="form-label">Sede (Cidade - UF)</label><input type="text" value="${target.city}" oninput="window.updateInput('company', 'city', this.value)" placeholder="Cidade - UF"></div>
+                        <div><label class="form-label">Endereço Comercial</label><input type="text" value="${target.address}" oninput="window.updateInput('company', 'address', this.value)" placeholder="Rua das Obras, 100"></div>
+                        <button onclick="window.clearContact('company')" class="w-full py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Limpar Campos</button>
                     </div>
                 `;
             } else if (tab === 'registry') {
                 container.innerHTML = `
                     <div class="space-y-4">
-                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Tabela de Preços (Unitários)</h3>
+                        <h3 class="text-[11px] font-black uppercase text-amber-600 mb-2 italic">Catálogo de Insumos & Serviços</h3>
                         <div class="max-h-[450px] overflow-y-auto custom-scrollbar space-y-3 pr-2">
                             ${[...state.registry.materials, ...state.registry.services].map((item, idx) => `
                                 <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl">
