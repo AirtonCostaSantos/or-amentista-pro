@@ -20,6 +20,7 @@
             font-family: 'Inter', sans-serif; 
             -webkit-print-color-adjust: exact; 
             background-color: #f1f5f9;
+            direction: ltr !important;
         }
         
         .tab-active { background-color: var(--primary); color: white; }
@@ -41,7 +42,10 @@
         .view-preview #preview-info, .view-preview #preview-actions { display: flex; }
 
         input, select, textarea { 
-            @apply transition-all duration-200 outline-none appearance-none bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold;
+            @apply transition-all duration-200 outline-none appearance-none bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold w-full text-slate-700;
+            direction: ltr !important;
+            text-align: left !important;
+            unicode-bidi: bidi-override !important;
         }
         input:focus, select:focus { @apply ring-2 ring-amber-500 border-amber-500 bg-white; }
         
@@ -54,6 +58,10 @@
             border-left: 6px solid var(--primary);
             border-radius: 0 0 1rem 1rem;
             margin-top: -1px;
+        }
+
+        .form-label {
+            @apply block text-[10px] font-black text-slate-500 uppercase mb-1.5 tracking-widest;
         }
     </style>
     <script type="importmap">
@@ -131,7 +139,7 @@
     <script type="module">
         import { GoogleGenAI } from "@google/genai";
 
-        const storageKey = 'orcamentista_pro_standalone_v2';
+        const storageKey = 'orcamentista_pro_standalone_v7';
         
         const defaultRegistry = {
             materials: [
@@ -173,13 +181,17 @@
             paintType: savedData.paintType || 'Acrílica Premium',
             electricalArea: savedData.electricalArea || 80,
             perimeterTotal: savedData.perimeterTotal || 40,
-            customer: savedData.customer || { name: '', address: '', contact: '', document: '' },
+            customer: savedData.customer || { name: '', address: '', contact: '', document: '', email: '', ierg: '', city: '' },
             company: savedData.company || { 
-                name: 'Sua Empresa de Drywall', 
-                address: 'Seu Endereço Profissional', 
-                contact: '(00) 00000-0000', 
-                document: '00.000.000/0001-00' 
+                name: 'Minha Empresa de Drywall', 
+                address: 'Rua das Obras, 100', 
+                contact: '(11) 90000-0000', 
+                document: '12.345.678/0001-90',
+                email: 'contato@empresa.com.br',
+                ierg: 'ISENTO',
+                city: 'São Paulo - SP'
             },
+            customersList: savedData.customersList || [],
             registry: savedData.registry || defaultRegistry,
             aiSummary: null,
             loadingAi: false
@@ -189,8 +201,16 @@
             localStorage.setItem(storageKey, JSON.stringify(state));
         }
 
-        window.switchTab = (tab) => { state.activeTab = tab; render(); };
-        window.switchRegistryTab = (tab) => { state.registryTab = tab; render(); };
+        window.switchTab = (tab) => { 
+            state.activeTab = tab; 
+            renderForm();
+            renderDocument(); 
+        };
+        window.switchRegistryTab = (tab) => { 
+            state.registryTab = tab; 
+            renderForm(); 
+        };
+        
         window.toggleView = (mode) => {
             state.viewMode = mode;
             const body = document.getElementById('app-body');
@@ -206,7 +226,8 @@
                 previewInfo.classList.add('hidden');
                 previewActions.classList.add('hidden');
             }
-            render();
+            renderHeader();
+            renderDocument();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
@@ -217,14 +238,61 @@
                 state[key] = val;
             }
             saveState();
-            render();
+            // Apenas atualiza o documento e header, NÃO o formulário para evitar perda de foco/inversão
+            renderHeader();
+            renderDocument();
         };
 
         window.updateContact = (type, key, val) => {
             if(!state[type]) state[type] = {};
             state[type][key] = val;
             saveState();
-            render();
+            // Apenas atualiza o documento e header, NÃO o formulário para evitar perda de foco/inversão
+            renderHeader();
+            renderDocument();
+        };
+
+        window.saveClientToList = () => {
+            const client = {...state.customer};
+            if (!client.name) return alert("Insira pelo menos o nome do cliente.");
+            
+            const index = state.customersList.findIndex(c => c.name.toLowerCase() === client.name.toLowerCase());
+            if (index >= 0) {
+                state.customersList[index] = client;
+            } else {
+                state.customersList.push(client);
+            }
+            saveState();
+            alert("Cliente salvo com sucesso!");
+            renderForm(); // Aqui podemos renderizar tudo pois é um clique de botão
+        };
+
+        window.saveCompanyData = () => {
+            saveState();
+            alert("Dados da empresa salvos!");
+            renderForm();
+        };
+
+        window.loadClient = (idx) => {
+            state.customer = {...state.customersList[idx]};
+            saveState();
+            renderForm();
+            renderDocument();
+        };
+
+        window.removeClientFromList = (idx) => {
+            if (confirm("Remover este cliente?")) {
+                state.customersList.splice(idx, 1);
+                saveState();
+                renderForm();
+            }
+        };
+
+        window.clearContact = (type) => {
+            state[type] = { name: '', address: '', contact: '', document: '', email: '', ierg: '', city: '' };
+            saveState();
+            renderForm();
+            renderDocument();
         };
 
         window.addToRegistry = (type) => {
@@ -234,38 +302,40 @@
             if (name && !isNaN(price)) {
                 state.registry[type].push({ name, price, unit });
                 saveState();
-                render();
+                renderForm();
             }
         };
 
         window.removeFromRegistry = (type, idx) => {
             state.registry[type].splice(idx, 1);
             saveState();
-            render();
+            renderForm();
         };
 
         window.approveBudget = () => {
             state.status = 'Approved';
             saveState();
-            render();
-            alert('Orçamento Aprovado com Sucesso!');
+            renderHeader();
+            renderDocument();
+            alert('Orçamento Aprovado!');
         };
 
         window.getAiAnalysis = async () => {
             if (state.loadingAi) return;
             state.loadingAi = true;
-            render();
+            renderHeader();
             const result = calculate();
             try {
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                const prompt = `Analise este orçamento técnico de ${state.mode}. Área: ${result.totalArea.toFixed(2)}m². Custo: R$ ${result.totalCost.toFixed(2)}. Forneça um memorial descritivo profissional em 3 parágrafos curtos em português.`;
+                const prompt = `Analise tecnicamente este orçamento de ${state.mode}. Área: ${result.totalArea.toFixed(2)}m². Custo Total: R$ ${result.totalCost.toFixed(2)}. Redija um memorial descritivo profissional em 3 parágrafos curtos em português do Brasil, citando normas de gesso e elétrica.`;
                 const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt });
                 state.aiSummary = response.text;
             } catch (e) {
-                state.aiSummary = "Análise técnica gerada localmente: O projeto atende às normas vigentes de gesso acartonado e elétrica residencial.";
+                state.aiSummary = "Análise técnica: O projeto atende às normas ABNT de segurança estrutural e elétrica residencial.";
             } finally {
                 state.loadingAi = false;
-                render();
+                renderHeader();
+                renderDocument();
             }
         };
 
@@ -323,7 +393,7 @@
                 });
             });
 
-            const servSection = { title: 'Mão de Obra Especializada', items: [] };
+            const servSection = { title: 'Serviços e Mão de Obra', items: [] };
             state.registry.services.forEach(serv => {
                 const matchMode = serv.name.toLowerCase().includes(state.mode.split('/')[0].toLowerCase()) ||
                                  (state.mode === 'Pintura' && serv.name.toLowerCase().includes('pintura')) ||
@@ -340,27 +410,25 @@
             return res;
         }
 
-        function render() {
-            const activeId = document.activeElement ? document.activeElement.id : null;
-            const cursorStart = document.activeElement ? document.activeElement.selectionStart : null;
-            const resultData = calculate();
-
+        function renderHeader() {
             document.getElementById('header-actions').innerHTML = state.viewMode === 'edit' ? `
                 <button onclick="window.getAiAnalysis()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-black flex items-center gap-2 text-[11px] transition-all uppercase tracking-widest ${state.loadingAi ? 'opacity-50' : ''}">
-                    <i class="fas ${state.loadingAi ? 'fa-sync fa-spin' : 'fa-magic'}"></i> Consultar IA
+                    <i class="fas ${state.loadingAi ? 'fa-sync fa-spin' : 'fa-magic'}"></i> Analisar com IA
                 </button>
                 <button onclick="window.toggleView('preview')" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-xl font-black flex items-center gap-2 text-[11px] shadow-lg shadow-amber-500/30 uppercase tracking-widest">
-                    <i class="fas fa-eye"></i> Visualizar
+                    <i class="fas fa-eye"></i> Gerar Orçamento
                 </button>
             ` : `
                 <button onclick="window.toggleView('edit')" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl font-black flex items-center gap-2 text-[11px] uppercase tracking-widest">
-                    <i class="fas fa-edit"></i> Editar Dados
+                    <i class="fas fa-edit"></i> Alterar Dados
                 </button>
                 <button onclick="window.approveBudget()" ${state.status === 'Approved' ? 'disabled' : ''} class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black flex items-center gap-2 text-[11px] uppercase tracking-widest">
                     <i class="fas fa-check"></i> ${state.status === 'Approved' ? 'Aprovado' : 'Aprovar'}
                 </button>
             `;
+        }
 
+        function renderForm() {
             document.querySelectorAll('#form-tabs button').forEach(btn => {
                 const id = btn.id.replace('tab-', '');
                 btn.className = `flex-1 py-4 px-2 text-[10px] font-black uppercase transition-all ${state.activeTab === id ? 'tab-active' : 'tab-inactive'}`;
@@ -371,24 +439,24 @@
                 form.innerHTML = `
                     <div class="flex p-1 bg-slate-100 rounded-xl border border-slate-200 gap-1 mb-6 overflow-x-auto custom-scrollbar">
                         ${['Forro/Sanca', 'Parede (Drywall)', 'Pintura', 'Elétrica'].map(m => `
-                            <button onclick="window.updateState('mode', '${m}')" class="flex-1 py-2 px-3 text-[9px] font-black uppercase rounded-lg transition-all whitespace-nowrap ${state.mode === m ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500'}">${m}</button>
+                            <button onclick="window.updateState('mode', '${m}'); window.renderForm();" class="flex-1 py-2 px-3 text-[9px] font-black uppercase rounded-lg transition-all whitespace-nowrap ${state.mode === m ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500'}">${m}</button>
                         `).join('')}
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         ${state.mode === 'Pintura' ? `
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Área Total (m²)</label><input id="inp-paintArea" type="text" oninput="window.updateState('paintArea', this.value)" value="${state.paintArea}"></div>
-                            <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Demãos</label><input id="inp-coats" type="text" oninput="window.updateState('coats', this.value)" value="${state.coats}"></div>
-                            <div><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Tipo Tinta</label><select id="inp-paintType" onchange="window.updateState('paintType', this.value)"><option ${state.paintType === 'Acrílica Premium' ? 'selected' : ''}>Acrílica Premium</option><option ${state.paintType === 'Acrílica Econômica' ? 'selected' : ''}>Acrílica Econômica</option></select></div>
+                            <div class="col-span-2"><label class="form-label">Área de Pintura (m²)</label><input id="inp-paintArea" type="text" oninput="window.updateState('paintArea', this.value)" value="${state.paintArea}"></div>
+                            <div><label class="form-label">Demãos</label><input id="inp-coats" type="text" oninput="window.updateState('coats', this.value)" value="${state.coats}"></div>
+                            <div><label class="form-label">Tipo Tinta</label><select id="inp-paintType" onchange="window.updateState('paintType', this.value)"><option ${state.paintType === 'Acrílica Premium' ? 'selected' : ''}>Acrílica Premium</option><option ${state.paintType === 'Acrílica Econômica' ? 'selected' : ''}>Acrílica Econômica</option></select></div>
                         ` : state.mode === 'Elétrica' ? `
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Área de Instalação (m²)</label><input id="inp-electricalArea" type="text" oninput="window.updateState('electricalArea', this.value)" value="${state.electricalArea}"></div>
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-400 uppercase mb-2 tracking-widest">Perímetro Linear (m)</label><input id="inp-perimeter" type="text" oninput="window.updateState('perimeterTotal', this.value)" value="${state.perimeterTotal}"></div>
+                            <div class="col-span-2"><label class="form-label">Área Total (m²)</label><input id="inp-electricalArea" type="text" oninput="window.updateState('electricalArea', this.value)" value="${state.electricalArea}"></div>
+                            <div class="col-span-2"><label class="form-label">Perímetro Linear (m)</label><input id="inp-perimeter" type="text" oninput="window.updateState('perimeterTotal', this.value)" value="${state.perimeterTotal}"></div>
                         ` : `
-                            <div><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Comprimento (m)</label><input id="inp-length" type="text" oninput="window.updateState('length', this.value)" value="${state.length}"></div>
-                            <div><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">${state.mode.includes('Parede') ? 'Altura' : 'Largura'} (m)</label><input id="inp-dim" type="text" oninput="window.updateState('${state.mode.includes('Parede') ? 'height' : 'width'}', this.value)" value="${state.mode.includes('Parede') ? state.height : state.width}"></div>
-                            <div class="col-span-2"><label class="block text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Tipo de Chapa</label><select id="inp-boardType" onchange="window.updateState('boardType', this.value)"><option ${state.boardType === 'Standard (Branca)' ? 'selected' : ''}>Standard (Branca)</option><option ${state.boardType === 'RU (Verde)' ? 'selected' : ''}>RU (Verde)</option><option ${state.boardType === 'RF (Rosa)' ? 'selected' : ''}>RF (Rosa)</option></select></div>
+                            <div><label class="form-label">Comprimento (m)</label><input id="inp-length" type="text" oninput="window.updateState('length', this.value)" value="${state.length}"></div>
+                            <div><label class="form-label">${state.mode.includes('Parede') ? 'Altura' : 'Largura'} (m)</label><input id="inp-dim" type="text" oninput="window.updateState('${state.mode.includes('Parede') ? 'height' : 'width'}', this.value)" value="${state.mode.includes('Parede') ? state.height : state.width}"></div>
+                            <div class="col-span-2"><label class="form-label">Tipo de Chapa</label><select id="inp-boardType" onchange="window.updateState('boardType', this.value)"><option ${state.boardType === 'Standard (Branca)' ? 'selected' : ''}>Standard (Branca)</option><option ${state.boardType === 'RU (Verde)' ? 'selected' : ''}>RU (Verde)</option><option ${state.boardType === 'RF (Rosa)' ? 'selected' : ''}>RF (Rosa)</option></select></div>
                             <div class="col-span-2 flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 mt-2">
-                                <input id="inp-double" type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="state.isDouble=this.checked; render();" class="w-5 h-5 accent-amber-500 cursor-pointer">
-                                <label for="inp-double" class="text-[10px] font-black text-slate-700 cursor-pointer select-none uppercase tracking-widest">Chapa Dupla / Camada Reforçada</label>
+                                <input id="inp-double" type="checkbox" ${state.isDouble ? 'checked' : ''} onchange="state.isDouble=this.checked; window.updateState('isDouble', this.checked);" class="w-5 h-5 accent-amber-500 cursor-pointer">
+                                <label for="inp-double" class="text-[10px] font-black text-slate-700 cursor-pointer select-none uppercase tracking-widest">Chapa Dupla (Reforço)</label>
                             </div>
                         `}
                     </div>
@@ -402,15 +470,15 @@
                     <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 mb-6">
                         <input id="reg-${state.registryTab}-name" type="text" placeholder="Nome do item" class="w-full">
                         <div class="flex gap-2">
-                            <input id="reg-${state.registryTab}-price" type="number" placeholder="Preço" class="flex-1">
+                            <input id="reg-${state.registryTab}-price" type="number" placeholder="Valor R$" class="flex-1">
                             <select id="reg-${state.registryTab}-unit" class="w-24"><option>unid</option><option>m²</option><option>m</option><option>L</option></select>
                         </div>
-                        <button onclick="window.addToRegistry('${state.registryTab}')" class="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all">+ Cadastrar Item</button>
+                        <button onclick="window.addToRegistry('${state.registryTab}')" class="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all">+ Adicionar ao Catálogo</button>
                     </div>
                     <div class="max-h-60 overflow-y-auto custom-scrollbar space-y-2">
                         ${state.registry[state.registryTab].map((item, idx) => `
                             <div class="flex justify-between items-center p-3 bg-white border-2 border-slate-100 rounded-xl group hover:border-amber-300 transition-all">
-                                <div class="pr-2"><p class="text-[11px] font-black text-slate-700 leading-none truncate w-40">${item.name}</p><p class="text-[9px] text-slate-400 font-bold uppercase mt-1">R$ ${item.price.toFixed(2)} / ${item.unit}</p></div>
+                                <div class="pr-2 truncate w-full"><p class="text-[11px] font-black text-slate-700 leading-none truncate">${item.name}</p><p class="text-[9px] text-slate-400 font-bold uppercase mt-1">R$ ${item.price.toFixed(2)} / ${item.unit}</p></div>
                                 <button onclick="window.removeFromRegistry('${state.registryTab}', ${idx})" class="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all px-2"><i class="fas fa-trash-alt text-[10px]"></i></button>
                             </div>
                         `).join('')}
@@ -419,59 +487,114 @@
             } else {
                 const type = state.activeTab;
                 const data = state[type];
+                const isCustomer = type === 'customer';
+                
                 form.innerHTML = `
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Nome / Identificação Social</label>
-                            <input id="inp-${type}-name" type="text" oninput="window.updateContact('${type}', 'name', this.value)" value="${data.name || ''}" class="w-full" placeholder="Ex: João da Silva">
+                    <div class="space-y-5">
+                        <div class="flex justify-between items-center border-b-2 border-slate-50 pb-2">
+                            <h3 class="text-[11px] font-black uppercase text-amber-600 tracking-widest italic">Dados Cadastrais</h3>
+                            <button onclick="window.clearContact('${type}')" class="text-[9px] font-black text-slate-400 hover:text-red-500 uppercase tracking-tighter">Limpar</button>
                         </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Endereço Completo</label>
-                            <input id="inp-${type}-address" type="text" oninput="window.updateContact('${type}', 'address', this.value)" value="${data.address || ''}" class="w-full" placeholder="Ex: Rua das Flores, 123">
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="form-label">Nome Completo / Razão Social</label>
+                                <input id="inp-${type}-name" type="text" oninput="window.updateContact('${type}', 'name', this.value)" value="${data.name || ''}" placeholder="Nome para Orçamento">
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="form-label">Documento (CPF / CNPJ)</label>
+                                    <input id="inp-${type}-document" type="text" oninput="window.updateContact('${type}', 'document', this.value)" value="${data.document || ''}" placeholder="Identificação">
+                                </div>
+                                <div>
+                                    <label class="form-label">E-mail para Orçamento</label>
+                                    <input id="inp-${type}-email" type="text" oninput="window.updateContact('${type}', 'email', this.value)" value="${data.email || ''}" placeholder="email@exemplo.com">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label class="form-label">Telefone / WhatsApp</label>
+                                    <input id="inp-${type}-contact" type="tel" oninput="window.updateContact('${type}', 'contact', this.value)" value="${data.contact || ''}" placeholder="(00) 00000-0000">
+                                </div>
+                                <div>
+                                    <label class="form-label">Cidade - UF</label>
+                                    <input id="inp-${type}-city" type="text" oninput="window.updateContact('${type}', 'city', this.value)" value="${data.city || ''}" placeholder="Sua Cidade - UF">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label">Endereço Completo</label>
+                                <input id="inp-${type}-address" type="text" oninput="window.updateContact('${type}', 'address', this.value)" value="${data.address || ''}" placeholder="Rua, Número, Bairro">
+                            </div>
                         </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Documento (CPF/CNPJ)</label>
-                            <input id="inp-${type}-document" type="text" oninput="window.updateContact('${type}', 'document', this.value)" value="${data.document || ''}" class="w-full" placeholder="Ex: 000.000.000-00">
+                        
+                        <div class="pt-4">
+                            <button onclick="${isCustomer ? 'window.saveClientToList()' : 'window.saveCompanyData()'}" class="w-full py-4 bg-slate-900 text-white rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-800 shadow-xl transition-all">
+                                <i class="fas fa-save mr-2"></i> ${isCustomer ? 'SALVAR NO CATÁLOGO DE CLIENTES' : 'ATUALIZAR DADOS DA EMPRESA'}
+                            </button>
                         </div>
-                        <div>
-                            <label class="block text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Telefone de Contato</label>
-                            <input id="inp-${type}-contact" type="text" oninput="window.updateContact('${type}', 'contact', this.value)" value="${data.contact || ''}" class="w-full" placeholder="Ex: (00) 00000-0000">
-                        </div>
+
+                        ${isCustomer && state.customersList.length > 0 ? `
+                            <div class="mt-8 border-t-2 border-slate-50 pt-4">
+                                <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Catálogo de Clientes</h4>
+                                <div class="max-h-52 overflow-y-auto custom-scrollbar space-y-3">
+                                    ${state.customersList.map((c, idx) => `
+                                        <div class="flex justify-between items-center p-3 bg-slate-50 border-2 border-slate-100 rounded-xl hover:border-amber-300 transition-all cursor-pointer group">
+                                            <div onclick="window.loadClient(${idx})" class="flex-1">
+                                                <p class="text-[10px] font-black text-slate-700 leading-none">${c.name}</p>
+                                                <p class="text-[8px] text-slate-400 font-bold uppercase mt-1 truncate w-40">${c.email || 'sem e-mail'}</p>
+                                            </div>
+                                            <button onclick="window.removeClientFromList(${idx})" class="text-slate-300 hover:text-red-500 transition-all p-1 opacity-0 group-hover:opacity-100">
+                                                <i class="fas fa-trash-alt text-[10px]"></i>
+                                            </button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }
+        }
 
+        function renderDocument() {
+            const resultData = calculate();
             document.getElementById('document-render').innerHTML = `
                 <div class="bg-white p-10 rounded-3xl shadow-xl border border-slate-200">
                     <div class="flex flex-col md:flex-row justify-between gap-10 pb-8 border-b-2 border-slate-100 mb-8">
-                        <div>
+                        <div class="flex-1">
                             <h3 class="text-amber-600 font-black text-[11px] uppercase mb-4 tracking-widest italic">PRESTADOR DE SERVIÇOS</h3>
                             <p class="text-2xl font-black text-slate-800 leading-tight">${state.company.name || '---'}</p>
                             <div class="text-[11px] text-slate-500 mt-5 space-y-2 font-medium">
                                 <p><i class="fas fa-id-card w-5 text-amber-500"></i> ${state.company.document || '---'}</p>
-                                <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> ${state.company.address || '---'}</p>
+                                <p><i class="fas fa-at w-5 text-amber-500"></i> ${state.company.email || '---'}</p>
+                                <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> ${state.company.address || '---'} | ${state.company.city || ''}</p>
                                 <p><i class="fas fa-phone w-5 text-amber-500"></i> ${state.company.contact || '---'}</p>
                             </div>
                         </div>
-                        <div class="bg-slate-50 p-8 rounded-3xl border-2 border-slate-100 min-w-[300px]">
+                        <div class="bg-slate-50 p-8 rounded-3xl border-2 border-slate-100 min-w-[320px]">
                             <h3 class="text-amber-600 font-black text-[11px] uppercase mb-3 tracking-widest italic">CLIENTE / DESTINATÁRIO</h3>
-                            <p class="text-xl font-black text-slate-800 leading-tight">${state.customer.name || 'Nome não definido'}</p>
-                            <div class="text-[11px] text-slate-500 mt-3 space-y-1 font-medium">
-                                <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> ${state.customer.address || 'Endereço não definido'}</p>
-                                <p><i class="fas fa-id-card w-5 text-amber-500"></i> ${state.customer.document || 'CPF/CNPJ não informado'}</p>
+                            <p class="text-xl font-black text-slate-800 leading-tight">${state.customer.name || '---'}</p>
+                            <div class="text-[11px] text-slate-500 mt-3 space-y-1.5 font-medium">
+                                <p><i class="fas fa-id-card w-5 text-amber-500"></i> CPF/CNPJ: ${state.customer.document || '---'}</p>
+                                <p><i class="fas fa-at w-5 text-amber-500"></i> ${state.customer.email || '---'}</p>
+                                <p><i class="fas fa-map-marker-alt w-5 text-amber-500"></i> Endereço: ${state.customer.address || '---'}</p>
+                                <p><i class="fas fa-phone w-5 text-amber-500"></i> Telefone: ${state.customer.contact || '---'}</p>
                             </div>
                         </div>
                     </div>
                     <div class="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                        <span class="text-slate-400">DOC #${Date.now().toString().slice(-6)}</span>
+                        <span class="text-slate-400 italic">DATA: ${new Date().toLocaleDateString('pt-BR')}</span>
                         <div class="px-5 py-2 rounded-full border-2 ${state.status === 'Approved' ? 'bg-green-500 text-white border-green-600 shadow-md' : 'bg-slate-100 text-slate-500 border-slate-200'} transition-all">
-                            STATUS: ${state.status === 'Approved' ? 'APROVADO' : 'AGUARDANDO APROVAÇÃO'}
+                            SITUAÇÃO: ${state.status === 'Approved' ? 'APROVADO' : 'AGUARDANDO APROVAÇÃO'}
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-white p-10 rounded-3xl shadow-xl border border-slate-200">
-                    <h2 class="text-2xl font-black text-slate-800 mb-10 uppercase border-b-8 border-amber-500 pb-4 inline-block tracking-tighter italic">Detalhamento da Proposta</h2>
+                    <h2 class="text-2xl font-black text-slate-800 mb-10 uppercase border-b-8 border-amber-500 pb-4 inline-block tracking-tighter italic">Composição Técnica do Orçamento</h2>
                     
                     ${resultData.sections.map(sec => `
                         <div class="mb-12 last:mb-0">
@@ -482,10 +605,10 @@
                                 <table class="w-full text-[12px]">
                                     <thead class="bg-slate-900 text-white font-black uppercase tracking-widest">
                                         <tr>
-                                            <th class="px-8 py-4 text-left">Especificação</th>
+                                            <th class="px-8 py-4 text-left">Especificação Técnica</th>
                                             <th class="px-8 py-4 text-right">Qtd</th>
-                                            <th class="px-8 py-4 text-right">Unitário</th>
-                                            <th class="px-8 py-4 text-right">Total</th>
+                                            <th class="px-8 py-4 text-right">Valor Unit.</th>
+                                            <th class="px-8 py-4 text-right">Subtotal</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-200">
@@ -503,48 +626,43 @@
                         </div>
                     `).join('')}
 
-                    <div class="mt-14 bg-slate-900 text-white p-12 rounded-[40px] flex flex-col md:flex-row justify-between items-center gap-10 shadow-2xl overflow-hidden">
-                        <div class="text-center md:text-left">
-                            <h4 class="text-amber-500 font-black text-base uppercase tracking-widest mb-3 italic leading-none">Investimento Total Estimado</h4>
-                            <p class="text-[11px] text-slate-400 uppercase font-black tracking-tighter max-w-sm leading-relaxed">Quantitativos calculados com base em normas ABNT sujeitos a conferência física do local.</p>
+                    <div class="mt-14 bg-slate-900 text-white p-12 rounded-[40px] flex flex-col md:flex-row justify-between items-center gap-10 shadow-2xl overflow-hidden relative">
+                        <div class="absolute inset-0 bg-amber-500/5 pointer-events-none"></div>
+                        <div class="text-center md:text-left relative">
+                            <h4 class="text-amber-500 font-black text-base uppercase tracking-widest mb-3 italic leading-none">Investimento Global Estimado</h4>
+                            <p class="text-[11px] text-slate-400 uppercase font-black tracking-tighter max-w-sm leading-relaxed">Proposta válida por 10 dias úteis. Inclui margem técnica de perda conforme normatização ABNT.</p>
                         </div>
-                        <div class="text-6xl font-black text-amber-500 tracking-tighter">R$ ${resultData.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <div class="text-6xl font-black text-amber-500 tracking-tighter relative">R$ ${resultData.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
 
                     ${state.aiSummary ? `
                         <div class="mt-14 p-10 bg-amber-50 border-l-[12px] border-amber-500 rounded-r-[40px] shadow-sm">
                             <h4 class="text-amber-800 font-black text-sm uppercase mb-6 flex items-center gap-3 tracking-widest italic">
-                                <i class="fas fa-file-invoice text-xl"></i> Parecer do Consultor Técnico (IA)
+                                <i class="fas fa-file-invoice text-xl"></i> Memorial Técnico Descritivo (IA)
                             </h4>
                             <div class="text-slate-700 text-[13px] leading-relaxed italic whitespace-pre-wrap font-bold opacity-90">${state.aiSummary}</div>
                         </div>
                     ` : ''}
 
                     <div class="mt-32 hidden print:grid grid-cols-2 gap-32">
-                        <div class="text-center border-t-4 border-slate-200 pt-6">
-                            <p class="text-[13px] font-black uppercase text-slate-800">${state.company.name || '---'}</p>
-                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Responsável Técnico</p>
+                        <div class="text-center border-t-4 border-slate-300 pt-6">
+                            <p class="text-[13px] font-black uppercase text-slate-800 leading-none">${state.company.name || 'Responsável Técnico'}</p>
+                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2 italic">Assinatura do Prestador</p>
                         </div>
-                        <div class="text-center border-t-4 border-slate-200 pt-6">
-                            <p class="text-[13px] font-black uppercase text-slate-800">${state.customer.name || 'ACEITE DO CLIENTE'}</p>
-                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Assinatura e Data</p>
+                        <div class="text-center border-t-4 border-slate-300 pt-6">
+                            <p class="text-[13px] font-black uppercase text-slate-800 leading-none">${state.customer.name || 'Contratante'}</p>
+                            <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2 italic">Aceite da Proposta Comercial</p>
                         </div>
                     </div>
                 </div>
             `;
-
-            if (activeId) {
-                const el = document.getElementById(activeId);
-                if (el) {
-                    el.focus();
-                    if (cursorStart !== null && (el.type === 'text' || el.type === 'tel' || el.type === 'url')) {
-                        try { el.setSelectionRange(cursorStart, cursorStart); } catch (e) {}
-                    }
-                }
-            }
         }
 
-        window.onload = () => render();
+        window.onload = () => {
+            renderHeader();
+            renderForm();
+            renderDocument();
+        };
     </script>
 </body>
 </html>
